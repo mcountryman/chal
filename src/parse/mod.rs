@@ -1,10 +1,10 @@
+pub mod errors;
 pub mod tokens;
+
+pub use errors::*;
 pub use tokens::*;
 
-pub mod errors;
-pub use errors::*;
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Position {
   line: usize,
   column: usize,
@@ -12,24 +12,46 @@ pub struct Position {
 }
 
 impl Position {
-  pub fn new() -> Self {
+  pub fn new(line: usize, column: usize, offset: usize) -> Self {
     Self {
-      line: 1,
-      column: 1,
-      offset: 0,
+      line,
+      column,
+      offset,
     }
+  }
+
+  pub fn line(&self) -> usize {
+    self.line
+  }
+
+  pub fn column(&self) -> usize {
+    self.column
+  }
+
+  pub fn offset(&self) -> usize {
+    self.offset
   }
 }
 
 impl Default for Position {
   fn default() -> Self {
-    Self::new()
+    Self::new(1, 1, 0)
   }
 }
 
+pub trait Positional {
+  fn position(&self) -> &Position;
+}
+
 #[derive(Debug, Clone)]
-pub struct Span<'a> {
+pub struct Span<'buf> {
   beg: Position,
   end: Position,
-  buf: &'a str,
+  buf: &'buf str,
+}
+
+impl<'buf> Span<'buf> {
+  pub fn new(beg: Position, end: Position, buf: &'buf str) -> Self {
+    Self { beg, end, buf }
+  }
 }
