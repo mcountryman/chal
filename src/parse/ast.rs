@@ -1,27 +1,27 @@
 use super::TokenKind;
 
-pub enum Stmt<'buf> {
-  If(If<'buf>),
-  Call(Call<'buf>),
-  UnaryOp(UnaryOp<'buf>),
-  BinaryOp(BinaryOp<'buf>),
-  Function(Function<'buf>),
-}
-
 pub enum Expression<'buf> {
   If(If<'buf>),
+  Var(Var<'buf>),
   Call(Call<'buf>),
+  String(&'buf str),
+  Number(f64),
   UnaryOp(UnaryOp<'buf>),
   BinaryOp(BinaryOp<'buf>),
   Function(Function<'buf>),
-  Compound(Vec<Expression<'buf>>),
   Reference(Reference<'buf>),
+  Compound(Vec<Expression<'buf>>),
 }
 
 pub struct If<'buf> {
-  condition: Box<Expression<'buf>>,
-  body: Box<Stmt<'buf>>,
-  fallthrough: Box<Stmt<'buf>>,
+  pub condition: Box<Expression<'buf>>,
+  pub body: Box<Expression<'buf>>,
+  pub fallthrough: Box<Expression<'buf>>,
+}
+
+pub struct Var<'buf> {
+  pub ident: &'buf str,
+  pub value: Box<Expression<'buf>>,
 }
 
 pub struct Call<'buf> {
@@ -30,7 +30,7 @@ pub struct Call<'buf> {
 }
 
 pub struct Block<'buf> {
-  body: Vec<Stmt<'buf>>,
+  body: Vec<Expression<'buf>>,
 }
 
 pub struct Function<'buf> {

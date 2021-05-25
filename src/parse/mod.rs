@@ -1,9 +1,10 @@
 pub mod ast;
 pub mod errors;
+pub mod parsers;
 pub mod tokens;
-pub mod visit;
 
 pub use errors::*;
+pub use parsers::*;
 pub use tokens::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]

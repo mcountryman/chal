@@ -32,11 +32,15 @@ impl<'buf> Tokenizer<'buf> {
   }
 
   /// Get tokenizer position in source buffer.
-  fn pos(&self) -> Position {
+  pub fn pos(&self) -> Position {
     self.chars.pos()
   }
 
-  fn span_current(&self, beg: Position) -> Span<'buf> {
+  pub fn span(&self) -> Span<'buf> {
+    Span::new(self.pos(), self.pos(), self.buf)
+  }
+
+  pub fn span_from(&self, beg: Position) -> Span<'buf> {
     Span::new(beg, self.pos(), self.buf)
   }
 
@@ -76,7 +80,7 @@ impl<'buf> Tokenizer<'buf> {
           // we indicate the variable is invalid.
           if !has_alpha_or_underscore {
             return Err(TokenizeError::bad_ident_numeric_before_alpha(
-              self.span_current(beg),
+              self.span_from(beg),
             ));
           }
 
@@ -109,7 +113,7 @@ impl<'buf> Tokenizer<'buf> {
         }
         Some('\n') => {
           return Err(TokenizeError::bad_string_unexpected_eol(
-            self.span_current(pos_pre_quote),
+            self.span_from(pos_pre_quote),
           ))
         }
         Some(_) => {
@@ -117,7 +121,7 @@ impl<'buf> Tokenizer<'buf> {
         }
         None => {
           return Err(TokenizeError::bad_string_unexpected_eof(
-            self.span_current(pos_pre_quote),
+            self.span_from(pos_pre_quote),
           ))
         }
       }
@@ -141,7 +145,7 @@ impl<'buf> Tokenizer<'buf> {
     // Parse float
     match raw.parse::<f64>() {
       Ok(num) => Ok(num),
-      Err(err) => Err(TokenizeError::BadNumber(err, self.span_current(beg))),
+      Err(err) => Err(TokenizeError::BadNumber(err, self.span_from(beg))),
     }
   }
 

@@ -4,8 +4,8 @@ use std::{borrow::Cow, ops::Deref};
 /// Contains token type, parsed token data and, a span reference to source.
 #[derive(Debug, Clone)]
 pub struct Token<'buf> {
-  span: Span<'buf>,
-  kind: TokenKind<'buf>,
+  pub span: Span<'buf>,
+  pub kind: TokenKind<'buf>,
 }
 
 impl<'buf> Deref for Token<'buf> {
@@ -25,20 +25,10 @@ impl<'buf> Token<'buf> {
   pub fn new(span: Span<'buf>, kind: TokenKind<'buf>) -> Self {
     Self { span, kind }
   }
-
-  /// Get token span.
-  pub fn span(&self) -> &Span<'buf> {
-    &self.span
-  }
-
-  /// Get token kind.
-  pub fn kind(&self) -> &TokenKind<'buf> {
-    &self.kind
-  }
 }
 
 /// The kind of token and relevant metadata.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum TokenKind<'buf> {
   /// Left parenthesis
   LParen,
