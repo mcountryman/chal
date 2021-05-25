@@ -2,9 +2,7 @@ name: build
 
 on:
   push:
-    branches-ignore: [main]
-  pull_request:
-    branches: [main]
+    branches: main
 
 jobs:
   clippy:
