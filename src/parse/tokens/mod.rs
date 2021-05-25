@@ -9,6 +9,10 @@ pub use token::*;
 use super::{Position, Span};
 use std::borrow::Cow;
 
+/// An iterator over the tokens of a str.
+///
+/// # Lifetimes
+/// * `'buf` - The lifetime of the source buffer.
 #[derive(Debug, Clone)]
 pub struct Tokenizer<'buf> {
   buf: &'buf str,
@@ -16,6 +20,10 @@ pub struct Tokenizer<'buf> {
 }
 
 impl<'buf> Tokenizer<'buf> {
+  /// Create new instance of tokenizer.
+  ///
+  /// # Arguments
+  /// * `buf` - The source buffer to tokenize.
   pub fn new(buf: &'buf str) -> Self {
     Self {
       buf,
@@ -23,7 +31,8 @@ impl<'buf> Tokenizer<'buf> {
     }
   }
 
-  pub fn pos(&self) -> Position {
+  /// Get tokenizer position in source buffer.
+  fn pos(&self) -> Position {
     self.chars.pos()
   }
 
@@ -46,13 +55,17 @@ impl<'buf> Tokenizer<'buf> {
     }
   }
 
-  /// Consume identifier.
+  /// Consume var or identifier token metadata.
+  ///
+  /// # Arguments
+  /// * `beg` - The position before token starts (used for marking locations in errors)
+  /// * `has_alpha_or_underscore` - If prior chars are alphabetic or underscore.
   fn eat_ident(
     &mut self,
     beg: Position,
     mut has_alpha_or_underscore: bool,
   ) -> TokenizeResult<'buf, &'buf str> {
-    'iter: loop {
+    loop {
       match self.chars.peek() {
         Some(ch) if ch.is_alphabetic() || *ch == '_' => {
           has_alpha_or_underscore = true;
@@ -69,14 +82,17 @@ impl<'buf> Tokenizer<'buf> {
 
           self.chars.next();
         }
-        _ => break 'iter,
+        _ => return Ok(&self.chars.as_str()[beg.offset..self.pos().offset]),
       }
     }
-
-    Ok(&self.chars.as_str()[beg.offset..self.pos().offset])
   }
 
-  fn eat_string(&mut self, quote: char, beg: Position) -> TokenizeResult<'buf, Cow<'buf, str>> {
+  /// Consume the rest of a string literal.
+  ///
+  /// # Arguments
+  /// * `beg` - The position before token starts (used for marking locations in errors)
+  /// * `quote` - The opening quote character.
+  fn eat_string(&mut self, beg: Position, quote: char) -> TokenizeResult<'buf, Cow<'buf, str>> {
     let pos_pre_quote = beg;
     let beg = self.pos();
 
@@ -91,11 +107,16 @@ impl<'buf> Tokenizer<'buf> {
 
           return Ok(Cow::from(&self.chars.as_str()[beg..end]));
         }
+        Some('\n') => {
+          return Err(TokenizeError::bad_string_unexpected_eol(
+            self.span_current(pos_pre_quote),
+          ))
+        }
         Some(_) => {
           self.chars.next();
         }
         None => {
-          return Err(TokenizeError::bad_string_unexpected_eos(
+          return Err(TokenizeError::bad_string_unexpected_eof(
             self.span_current(pos_pre_quote),
           ))
         }
@@ -103,21 +124,30 @@ impl<'buf> Tokenizer<'buf> {
     }
   }
 
+  /// Consume the rest of the number token.
+  ///
+  /// # Arguments
+  /// * `beg` - The position before token starts (used for marking locations in errors)
   fn eat_number(&mut self, beg: Position) -> TokenizeResult<'buf, f64> {
+    // Consume numeric characters and decimal characters.
     while self
       .chars
       .next_if(|ch| ch.is_numeric() || *ch == '.')
       .is_some()
     {}
 
+    // Get buffer slice for number
     let raw = &self.chars.as_str()[beg.offset()..self.pos().offset()];
+    // Parse float
     match raw.parse::<f64>() {
       Ok(num) => Ok(num),
       Err(err) => Err(TokenizeError::BadNumber(err, self.span_current(beg))),
     }
   }
 
+  /// Consume next token and return.
   fn next_token(&mut self) -> TokenizeResult<'buf, Option<Token<'buf>>> {
+    // Position before token start
     let beg = self.pos();
     let kind = match self.chars.next() {
       // Prioritize parens
@@ -129,7 +159,7 @@ impl<'buf> Tokenizer<'buf> {
       // Ident
       Some(ch) if ch.is_alphabetic() || ch == '_' => TokenKind::Ident(self.eat_ident(beg, true)?),
       // String
-      Some(ch) if ch == '"' || ch == '\'' => TokenKind::String(self.eat_string(ch, beg)?),
+      Some(ch) if ch == '"' || ch == '\'' => TokenKind::String(self.eat_string(beg, ch)?),
       // Number
       Some(ch) if ch.is_numeric() => TokenKind::Number(self.eat_number(beg)?),
 
@@ -299,23 +329,38 @@ mod tests {
     let beg = tokenizer.pos();
 
     assert_eq!(tokenizer.chars.next(), Some('"'));
-    assert_eq!(tokenizer.eat_string('"', beg).unwrap(), "This is a string");
+    assert_eq!(tokenizer.eat_string(beg, '"').unwrap(), "This is a string");
     assert_eq!(tokenizer.chars.next(), None);
   }
 
   #[test]
-  pub fn test_eat_string_unexpected_eos() {
+  pub fn test_eat_string_unexpected_eof() {
     let mut tokenizer = Tokenizer::new("'This is a bad string");
     let beg = tokenizer.pos();
 
     assert_eq!(tokenizer.chars.next(), Some('\''));
 
-    match tokenizer.eat_string('\'', beg) {
+    match tokenizer.eat_string(beg, '\'') {
       Err(TokenizeError::BadString(..)) => {}
       _ => panic!("Expected `TokenizeError::BadString(..)`"),
     };
 
     assert_eq!(tokenizer.chars.next(), None);
+  }
+
+  #[test]
+  pub fn test_eat_string_unexpected_eol() {
+    let mut tokenizer = Tokenizer::new("'This is a bad string\n'");
+    let beg = tokenizer.pos();
+
+    assert_eq!(tokenizer.chars.next(), Some('\''));
+
+    match tokenizer.eat_string(beg, '\'') {
+      Err(TokenizeError::BadString(..)) => {}
+      _ => panic!("Expected `TokenizeError::BadString(..)`"),
+    };
+
+    assert_eq!(tokenizer.chars.next(), Some('\n'));
   }
 
   #[test]
@@ -391,6 +436,24 @@ mod tests {
   #[test]
   pub fn test_tokenize_whitespace_chal() {
     Tokenizer::new(include_str!("../../../data/whitespace.chal"))
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+  }
+
+  #[test]
+  #[cfg_attr(miri, ignore)]
+  pub fn test_tokenize_stress() {
+    let merged = concat!(
+      include_str!("../../../data/errors.chal"),
+      include_str!("../../../data/fizzbuzz.chal"),
+      include_str!("../../../data/math.chal"),
+      include_str!("../../../data/recursion.chal"),
+      include_str!("../../../data/string.chal"),
+      include_str!("../../../data/whitespace.chal"),
+    )
+    .repeat(1_000);
+
+    Tokenizer::new(&merged)
       .collect::<Result<Vec<_>, _>>()
       .unwrap();
   }

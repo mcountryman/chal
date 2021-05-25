@@ -1,6 +1,7 @@
 use crate::parse::Position;
 use std::str::Chars;
 
+/// An iterator over characters with position tracking.
 #[derive(Debug, Clone)]
 pub struct TokenizerChars<'buf> {
   buf: &'buf str,
@@ -10,6 +11,7 @@ pub struct TokenizerChars<'buf> {
 }
 
 impl<'buf> TokenizerChars<'buf> {
+  /// Create [`TokenizerChars`]
   pub fn new(buf: &'buf str) -> Self {
     Self {
       buf,
@@ -19,14 +21,17 @@ impl<'buf> TokenizerChars<'buf> {
     }
   }
 
+  /// Get current position of iterator.
   pub fn pos(&self) -> Position {
     self.pos
   }
 
+  /// Get reference to underlying str.
   pub fn as_str(&self) -> &'buf str {
     &self.buf
   }
 
+  /// Peek next char.
   pub fn peek(&mut self) -> Option<&char> {
     let pos = &self.pos;
     let chars = &mut self.chars;
@@ -38,6 +43,10 @@ impl<'buf> TokenizerChars<'buf> {
       .map(|(_, ch)| ch)
   }
 
+  /// Consumes next char and returns result if predicate returns true.
+  ///
+  /// # Arguments
+  /// * `func` - The predicate used to determine if iterator will proceed.
   pub fn next_if(&mut self, func: impl FnOnce(&char) -> bool) -> Option<char> {
     let next = match self.peeked.take() {
       Some(peeked) => peeked,
