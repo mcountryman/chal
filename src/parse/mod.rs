@@ -1,5 +1,7 @@
+pub mod ast;
 pub mod errors;
 pub mod tokens;
+pub mod visit;
 
 pub use errors::*;
 pub use tokens::*;
