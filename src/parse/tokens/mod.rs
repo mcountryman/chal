@@ -352,4 +352,46 @@ mod tests {
 
     assert_eq!(tokenizer.chars.next(), None);
   }
+
+  #[test]
+  pub fn test_tokenize_errors_chal() {
+    Tokenizer::new(include_str!("../../../data/errors.chal"))
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+  }
+
+  #[test]
+  pub fn test_tokenize_fizzbuzz_chal() {
+    Tokenizer::new(include_str!("../../../data/fizzbuzz.chal"))
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+  }
+
+  #[test]
+  pub fn test_tokenize_math_chal() {
+    Tokenizer::new(include_str!("../../../data/math.chal"))
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+  }
+
+  #[test]
+  pub fn test_tokenize_recursion_chal() {
+    Tokenizer::new(include_str!("../../../data/recursion.chal"))
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+  }
+
+  #[test]
+  pub fn test_tokenize_string_chal() {
+    Tokenizer::new(include_str!("../../../data/string.chal"))
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+  }
+
+  #[test]
+  pub fn test_tokenize_whitespace_chal() {
+    Tokenizer::new(include_str!("../../../data/whitespace.chal"))
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+  }
 }

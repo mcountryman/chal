@@ -1,0 +1,15 @@
+(var print 0) #default function name
+(var 0 0) #variable name cannot be a number
+
+(
+    (print 0.5) #no error here
+    (print "this" "should" "fail") #too many arguments supplied
+)
+
+#second entry point
+(
+    (print "whoops")
+)
+
+(fun test(param)) #no body defined
+(fun test(param) ()) #method with same name already exists

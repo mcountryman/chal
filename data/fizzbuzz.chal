@@ -1,0 +1,34 @@
+(var counter 0)
+(var max 100)
+
+#entry point
+(
+    (recursiveIncr $max)
+)
+
+(fun recursiveIncr (max)
+   (
+        (print (fizzbuzz counter))
+
+        (
+            if (equal $counter max) 
+            $counter
+            (recursiveIncr (++ $counter) max)
+        )
+    )
+)
+
+(fun fizzbuzz (value)
+    (
+        (if (equal (* 15 (/ 15 value)) value)
+            "Fizzbuzz"
+            (if (equal (* 5 (/ 5 value)) value)
+                "Buzz"
+                (if (equal (* 3 (/ 3 value)) value)
+                    "Fizz"
+                     value
+                )
+            )
+        )
+    )
+)

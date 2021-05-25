@@ -1,0 +1,22 @@
+#simple recursive counter
+
+(var counter 0)
+(var max 0)
+
+#entry point
+(
+    (print "Enter a max number: ")
+    ($max (readInNumber))
+    (recursiveIncr max)
+    (print (append "Counter is at: " $counter))
+)
+
+(fun recursiveIncr ($counter max)
+    (
+        (
+            if (equal $counter max) 
+            $counter
+            (recursiveIncr (++ $counter) max)
+        )
+    )
+)
