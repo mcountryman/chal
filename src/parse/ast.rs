@@ -2,7 +2,6 @@ use super::TokenKind;
 
 pub enum Stmt<'buf> {
   If(If<'buf>),
-  Noop,
   Call(Call<'buf>),
   UnaryOp(UnaryOp<'buf>),
   BinaryOp(BinaryOp<'buf>),
@@ -11,7 +10,6 @@ pub enum Stmt<'buf> {
 
 pub enum Expression<'buf> {
   If(If<'buf>),
-  Noop,
   Call(Call<'buf>),
   UnaryOp(UnaryOp<'buf>),
   BinaryOp(BinaryOp<'buf>),
