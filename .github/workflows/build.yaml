@@ -81,4 +81,4 @@ jobs:
 
       - name: Test
         run: |
-          cargo test --lib --target ${{ matrix.target }} ${{ matrix.toolchain == 'nightly' && '--features=nightly' || '' }}
+          cargo test --target ${{ matrix.target }} ${{ matrix.toolchain == 'nightly' && '--features=nightly' || '' }}
