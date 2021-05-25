@@ -54,4 +54,8 @@ impl<'buf> Span<'buf> {
   pub fn new(beg: Position, end: Position, buf: &'buf str) -> Self {
     Self { beg, end, buf }
   }
+
+  pub fn as_str(&self) -> &'buf str {
+    &self.buf[self.beg.offset..self.end.offset]
+  }
 }
