@@ -86,7 +86,7 @@ impl<'buf> Tokenizer<'buf> {
 
           self.chars.next();
         }
-        _ => return Ok(&self.chars.as_str()[beg.offset..self.pos().offset]),
+        _ => return Ok(&self.chars.as_str()[beg.offset()..self.pos().offset()]),
       }
     }
   }

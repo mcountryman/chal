@@ -71,9 +71,9 @@ impl<'buf> TokenizerChars<'buf> {
     let ch = chars.next();
     match ch {
       Some(ch) => {
-        let mut line = pos.line;
-        let mut column = pos.column;
-        let offset = pos.offset + ch.len_utf8();
+        let mut line = pos.line();
+        let mut column = pos.column();
+        let offset = pos.offset() + ch.len_utf8();
 
         if ch == '\n' {
           line += 1;
