@@ -66,21 +66,21 @@ jobs:
             target: x86_64-unknown-linux-gnu
             toolchain: nightly
             variant: minimal_versions
-        steps:
-          - uses: actions/checkout@v2
-          - name: Install toolchain
-            uses: actions-rs/toolchain@v1
-            with:
-              profile: minimal
-              target: ${{ matrix.target }}
-              toolchain: ${{ matrix.toolchain }}
-              override: true
-          - uses: Swatinem/rust-cache@v1
-          - run: ${{ matrix.deps }}
-          - name: Maybe minimal versions
-            if: ${{ matrix.variant == 'minimal_versions' }}
-            run: cargo generate-lockfile -Z minimal-versions
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          target: ${{ matrix.target }}
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - uses: Swatinem/rust-cache@v1
+      - run: ${{ matrix.deps }}
+      - name: Maybe minimal versions
+        if: ${{ matrix.variant == 'minimal_versions' }}
+        run: cargo generate-lockfile -Z minimal-versions
 
-          - name: Test
-            run: |
-              cargo test --lib --target ${{ matrix.target }} ${{ matrix.toolchain == 'nightly' && '--features=nightly' || '' }}
+      - name: Test
+        run: |
+          cargo test --lib --target ${{ matrix.target }} ${{ matrix.toolchain == 'nightly' && '--features=nightly' || '' }}
