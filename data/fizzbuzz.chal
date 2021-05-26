@@ -1,14 +1,13 @@
 (var counter 0)
-(var max 100)
 
 #entry point
 (
-    (recursiveIncr $max)
+    (recursiveIncr 100)
 )
 
 (fun recursiveIncr (max)
    (
-        (print (fizzbuzz counter))
+        (print (fizzbuzz $counter))
 
         (
             if (equal $counter max) 

@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Position {
   line: usize,
@@ -37,7 +39,7 @@ pub trait Positional {
   fn position(&self) -> &Position;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Span<'buf> {
   beg: Position,
   end: Position,
@@ -51,5 +53,17 @@ impl<'buf> Span<'buf> {
 
   pub fn as_str(&self) -> &'buf str {
     &self.buf[self.beg.offset..self.end.offset]
+  }
+}
+
+impl std::fmt::Debug for Span<'_> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    write!(
+      f,
+      "ln {}, col {}, `{}`",
+      self.beg.line,
+      self.beg.column,
+      &self.buf[self.beg.offset()..self.end.offset()]
+    )
   }
 }

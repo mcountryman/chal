@@ -159,7 +159,7 @@ impl<'buf> Tokenizer<'buf> {
       Some(')') => TokenKind::RParen,
 
       // Ident
-      Some('$') => TokenKind::Ident(self.eat_ident(self.pos(), false)?),
+      Some('$') => TokenKind::Var(self.eat_ident(self.pos(), false)?),
       // Ident
       Some(ch) if ch.is_alphabetic() || ch == '_' => TokenKind::Ident(self.eat_ident(beg, true)?),
       // String
