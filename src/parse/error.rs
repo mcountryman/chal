@@ -47,7 +47,7 @@ impl ParseError<'_> {
   }
 
   pub fn expected_var_expr(span: Span<'_>) -> ParseError<'_> {
-    ParseError::Missing("Expected if body".to_string(), span)
+    ParseError::Missing("Expected variable expression".to_string(), span)
   }
 
   pub fn expected_func_body(span: Span<'_>) -> ParseError<'_> {

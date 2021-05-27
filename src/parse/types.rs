@@ -31,7 +31,7 @@ impl Position {
 
 impl Default for Position {
   fn default() -> Self {
-    Self::new(1, 1, 0)
+    Self::new(1, 0, 0)
   }
 }
 
@@ -61,8 +61,8 @@ impl std::fmt::Debug for Span<'_> {
     write!(
       f,
       "ln {}, col {}, `{}`",
-      self.beg.line,
-      self.beg.column,
+      self.end.line,
+      self.end.column,
       &self.buf[self.beg.offset()..self.end.offset()]
     )
   }

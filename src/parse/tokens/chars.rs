@@ -78,6 +78,8 @@ impl<'buf> TokenizerChars<'buf> {
         if ch == '\n' {
           line += 1;
           column = 1;
+        } else {
+          column += 1;
         }
 
         Some((Position::new(line, column, offset), ch))
