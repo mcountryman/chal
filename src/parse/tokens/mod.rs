@@ -6,7 +6,7 @@ pub use chars::*;
 pub use error::*;
 pub use token::*;
 
-use super::{Position, Span};
+use super::{AsStr, IntoPeekableExt, PeekableExt, Position, Positional, Span, Spannable};
 use std::borrow::Cow;
 
 /// An iterator over the tokens of a str.
@@ -16,7 +16,7 @@ use std::borrow::Cow;
 #[derive(Debug, Clone)]
 pub struct Tokenizer<'buf> {
   buf: &'buf str,
-  chars: TokenizerChars<'buf>,
+  chars: PeekableExt<TokenizerChars<'buf>>,
 }
 
 impl<'buf> Tokenizer<'buf> {
@@ -27,21 +27,8 @@ impl<'buf> Tokenizer<'buf> {
   pub fn new(buf: &'buf str) -> Self {
     Self {
       buf,
-      chars: TokenizerChars::new(buf),
+      chars: TokenizerChars::new(buf).peekable_ext(),
     }
-  }
-
-  /// Get tokenizer position in source buffer.
-  pub fn pos(&self) -> Position {
-    self.chars.pos()
-  }
-
-  pub fn span(&self) -> Span<'buf> {
-    Span::new(self.pos(), self.pos(), self.buf)
-  }
-
-  pub fn span_from(&self, beg: Position) -> Span<'buf> {
-    Span::new(beg, self.pos(), self.buf)
   }
 
   /// Consume whitespace characters until <EOS> or non-whitespace character.
@@ -80,13 +67,13 @@ impl<'buf> Tokenizer<'buf> {
           // we indicate the variable is invalid.
           if !has_alpha_or_underscore {
             return Err(TokenizeError::bad_ident_numeric_before_alpha(
-              self.span_from(beg),
+              self.span_to(beg),
             ));
           }
 
           self.chars.next();
         }
-        _ => return Ok(&self.chars.as_str()[beg.offset()..self.pos().offset()]),
+        _ => return Ok(&self.chars.as_str()[beg.offset..self.pos().offset]),
       }
     }
   }
@@ -103,8 +90,8 @@ impl<'buf> Tokenizer<'buf> {
     loop {
       match self.chars.peek() {
         Some(ch) if *ch == quote => {
-          let beg = beg.offset();
-          let end = self.pos().offset();
+          let beg = beg.offset;
+          let end = self.pos().offset;
 
           // Consume quote
           self.chars.next();
@@ -113,7 +100,7 @@ impl<'buf> Tokenizer<'buf> {
         }
         Some('\n') => {
           return Err(TokenizeError::bad_string_unexpected_eol(
-            self.span_from(pos_pre_quote),
+            self.span_to(pos_pre_quote),
           ))
         }
         Some(_) => {
@@ -121,7 +108,7 @@ impl<'buf> Tokenizer<'buf> {
         }
         None => {
           return Err(TokenizeError::bad_string_unexpected_eof(
-            self.span_from(pos_pre_quote),
+            self.span_to(pos_pre_quote),
           ))
         }
       }
@@ -141,11 +128,11 @@ impl<'buf> Tokenizer<'buf> {
     {}
 
     // Get buffer slice for number
-    let raw = &self.chars.as_str()[beg.offset()..self.pos().offset()];
+    let raw = &self.chars.as_str()[beg.offset..self.pos().offset];
     // Parse float
     match raw.parse::<f64>() {
       Ok(num) => Ok(num),
-      Err(err) => Err(TokenizeError::BadNumber(err, self.span_from(beg))),
+      Err(err) => Err(TokenizeError::BadNumber(err, self.span_to(beg))),
     }
   }
 
@@ -250,10 +237,26 @@ impl<'buf> Iterator for Tokenizer<'buf> {
   }
 }
 
+impl Positional for Tokenizer<'_> {
+  fn pos(&self) -> Position {
+    self.chars.pos()
+  }
+}
+
+impl<'buf> Spannable<'buf> for Tokenizer<'buf> {
+  fn span(&self) -> Span<'buf> {
+    self.chars.span()
+  }
+
+  fn span_to(&self, to: Position) -> Span<'buf> {
+    self.chars.span_to(to)
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::Tokenizer;
-  use crate::parse::TokenizeError;
+  use crate::parse::{Positional, TokenizeError};
 
   #[test]
   pub fn test_eat_whitespace_end_at_non_whitespace() {

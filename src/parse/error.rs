@@ -4,7 +4,7 @@ use std::{error::Error, fmt::Display};
 pub type ParseResult<'buf, T> = Result<T, ParseError<'buf>>;
 
 /// An error which can be returned when tokenizing a str.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ParseError<'buf> {
   Tokenize(TokenizeError<'buf>),
   Unexpected(String, Span<'buf>),
@@ -73,7 +73,21 @@ impl<'buf> From<TokenizeError<'buf>> for ParseError<'buf> {
   }
 }
 
-impl Display for ParseError<'_> {
+impl std::fmt::Debug for ParseError<'_> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      ParseError::Tokenize(err) => write!(f, "{:?}", err),
+      ParseError::Unexpected(message, span) => write!(f, "{} at {:?}", message, span),
+      ParseError::UnexpectedToken(message, token) => {
+        write!(f, "{} `{:?}` at {:?}", message, token.kind, token.span)
+      }
+      ParseError::Missing(message, span) => write!(f, "{} at {:?}", message, span),
+      ParseError::EmptyExpression(message, span) => write!(f, "{} at {:?}", message, span),
+    }
+  }
+}
+
+impl std::fmt::Display for ParseError<'_> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{:?}", self)
   }

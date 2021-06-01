@@ -155,7 +155,7 @@ impl std::fmt::Debug for Token<'_> {
 }
 
 /// The kind of token and relevant metadata.
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Clone, PartialEq, PartialOrd)]
 pub enum TokenKind<'buf> {
   /// Left parenthesis
   LParen,
@@ -209,4 +209,40 @@ pub enum TokenKind<'buf> {
   Gt,
   /// Greater than equal to operator
   GtEq,
+}
+
+impl ToString for TokenKind<'_> {
+  fn to_string(&self) -> String {
+    match self {
+      TokenKind::LParen => "(".to_string(),
+      TokenKind::RParen => ")".to_string(),
+      TokenKind::String(inner) => format!("\"{}\"", inner),
+      TokenKind::Number(inner) => inner.to_string(),
+      TokenKind::Var(inner) => format!("${}", inner),
+      TokenKind::Ident(inner) => inner.to_string(),
+      TokenKind::Add => "+".to_string(),
+      TokenKind::Sub => "-".to_string(),
+      TokenKind::Div => "/".to_string(),
+      TokenKind::Mul => "*".to_string(),
+      TokenKind::Pow => "^".to_string(),
+      TokenKind::Mod => "$".to_string(),
+      TokenKind::AddInc => "++".to_string(),
+      TokenKind::SubInc => "--".to_string(),
+      TokenKind::BOr => "|".to_string(),
+      TokenKind::BNot => "^".to_string(),
+      TokenKind::BAnd => "&".to_string(),
+      TokenKind::BLShift => "<<".to_string(),
+      TokenKind::BRShift => ">>".to_string(),
+      TokenKind::Lt => "<".to_string(),
+      TokenKind::LtEq => "<=".to_string(),
+      TokenKind::Gt => ">".to_string(),
+      TokenKind::GtEq => ">=".to_string(),
+    }
+  }
+}
+
+impl std::fmt::Debug for TokenKind<'_> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
 }

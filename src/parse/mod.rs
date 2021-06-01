@@ -3,6 +3,8 @@ pub mod error;
 pub mod tokens;
 pub mod types;
 
+use std::iter;
+
 pub use ast::*;
 pub use error::*;
 pub use tokens::*;
@@ -20,81 +22,79 @@ impl<'buf> Parser<'buf> {
   }
 
   pub fn parse(&mut self) -> ParseResult<'buf, Expr<'buf>> {
-    let mut depth = 0;
-
-    Ok(self.next_expr(&mut depth, false)?.unwrap_or(Expr::Noop))
+    self.next_expr_many()
   }
 
-  fn next_expr(
-    &mut self,
-    depth: &mut usize,
-    mut first: bool,
-  ) -> ParseResult<'buf, Option<Expr<'buf>>> {
-    let mut exprs = Vec::new();
+  fn next_expr(&mut self) -> ParseResult<'buf, Option<Expr<'buf>>> {
+    Ok(match self.tokens.next().transpose()? {
+      Some(token) => match token.kind {
+        TokenKind::LParen => {
+          let expr = self.next_expr_many()?;
+          match self.tokens.next().transpose()? {
+            Some(token) if token.is_right_paren() => {}
+            Some(token) => return Err(ParseError::expected_right_paren(token.span)),
+            None => return Err(ParseError::expected_right_paren(self.tokens.span())),
+          };
 
-    loop {
-      if let Some(expr) = self.next_expr_imp(depth, &mut first)? {
-        exprs.push(expr);
-      }
+          Some(expr)
+        }
 
-      if *depth == 0 {
-        break;
-      }
-    }
+        TokenKind::Ident("var") => Some(Expr::Assign {
+          ident: self.next_ident()?,
+          expr: self
+            .next_expr()?
+            .map(Box::new)
+            .ok_or_else(|| ParseError::expected_var_expr(self.tokens.span()))?,
+        }),
 
-    Ok(match exprs.len() {
-      0 => None,
-      1 => Some(exprs[0].clone()),
-      _ => Some(Expr::Compound(exprs)),
+        TokenKind::Ident("if") => Some(Expr::If {
+          condition: self
+            .next_expr()?
+            .map(Box::new)
+            .ok_or_else(|| ParseError::expected_if_condition(self.tokens.span()))?,
+          body: self
+            .next_expr()?
+            .map(Box::new)
+            .ok_or_else(|| ParseError::expected_if_body(self.tokens.span()))?,
+          fallthrough: self.next_expr()?.map(Box::new),
+        }),
+
+        TokenKind::Ident("fun") => Some(Expr::Function {
+          name: self.next_ident()?,
+          params: self.next_params()?,
+          body: self
+            .next_expr()?
+            .map(Box::new)
+            .ok_or_else(|| ParseError::expected_func_body(self.tokens.span()))?,
+        }),
+
+        _ => Some(self.next_expr_simple(token)?),
+      },
+      None => None,
     })
   }
 
-  fn next_expr_imp(
-    &mut self,
-    depth: &mut usize,
-    first: &mut bool,
-  ) -> ParseResult<'buf, Option<Expr<'buf>>> {
-    Ok(match self.tokens.next().transpose()? {
-      Some(token) => {
-        println!("token: {:?}", token);
-        match token.kind {
-          TokenKind::LParen => {
-            *depth += 1;
-            *first = true;
+  fn next_expr_simple(&mut self, token: Token<'buf>) -> ParseResult<'buf, Expr<'buf>> {
+    match token.kind {
+      TokenKind::Number(value) => Ok(Expr::Number(value)),
+      TokenKind::String(value) => Ok(Expr::String(value)),
+      TokenKind::Var(value) => Ok(Expr::RefVar(value)),
+      TokenKind::Ident(value) => Ok(Expr::RefParam(value)),
+      _ => Err(ParseError::unexpected_token(token)),
+    }
+  }
 
-            None
-          }
-          TokenKind::RParen if *depth > 0 => {
-            *depth -= 1;
-            *first = false;
+  fn next_expr_many(&mut self) -> ParseResult<'buf, Expr<'buf>> {
+    let mut exprs = Vec::new();
 
-            None
-          }
+    while let Some(expr) = self.next_expr()? {
+      exprs.push(expr);
+    }
 
-          TokenKind::Ident("var") if *depth > 0 && *first => Some(Expr::Assign {
-            ident: self.next_ident()?,
-            expr: self
-              .next_expr(depth, false)?
-              .map(Box::new)
-              .ok_or_else(|| ParseError::expected_var_expr(self.tokens.span()))?,
-          }),
-
-          TokenKind::Ident("fun") if *depth > 0 && *first => Some(Expr::Function {
-            name: self.next_ident()?,
-            params: Vec::new(),
-            body: self
-              .next_expr(depth, false)?
-              .map(Box::new)
-              .ok_or_else(|| ParseError::expected_func_body(self.tokens.span()))?,
-          }),
-
-          TokenKind::Number(value) => Some(Expr::Number(value)),
-          TokenKind::String(value) => Some(Expr::String(value)),
-
-          _ => return Err(ParseError::unexpected_token(token)),
-        }
-      }
-      None => None,
+    Ok(match exprs.len() {
+      0 => Expr::Noop,
+      1 => exprs[0].clone(),
+      _ => Expr::Compound(exprs),
     })
   }
 
@@ -118,7 +118,28 @@ impl<'buf> Parser<'buf> {
     }
   }
 
-  fn next_params(&mut self) -> ParseResult<'buf, &'buf str> {}
+  fn next_params(&mut self) -> ParseResult<'buf, Vec<&'buf str>> {
+    let mut params = Vec::new();
+
+    match self.tokens.next().transpose()? {
+      Some(token) if !token.is_left_paren() => {
+        return Err(ParseError::expected_left_paren(token.span))
+      }
+      Some(_) => {}
+      None => return Err(ParseError::expected_left_paren(self.tokens.span())),
+    };
+
+    loop {
+      match self.tokens.next().transpose()? {
+        Some(token) => match token.kind {
+          TokenKind::Ident(ident) => params.push(ident),
+          TokenKind::RParen => return Ok(params),
+          _ => return Err(ParseError::expected_right_paren(token.span)),
+        },
+        None => return Err(ParseError::expected_right_paren(self.tokens.span())),
+      }
+    }
+  }
 }
 
 #[cfg(test)]
@@ -201,24 +222,43 @@ mod tests {
       }
     );
 
-    assert_eq!(
-      Parser::new("(if $variable 1)").parse().unwrap(),
-      Expr::If {
-        condition: Box::new(Expr::RefVar("variable")),
-        body: Box::new(Expr::Number(1.0)),
-        fallthrough: None
-      }
-    );
+    // assert_eq!(
+    //   Parser::new("(if $variable 1)").parse().unwrap(),
+    //   Expr::If {
+    //     condition: Box::new(Expr::RefVar("variable")),
+    //     body: Box::new(Expr::Number(1.0)),
+    //     fallthrough: None
+    //   }
+    // );
   }
 
   #[test]
   fn test_func() {
     assert_eq!(
-      Parser::new("(func function (a b c d) 1)").parse().unwrap(),
+      Parser::new("(fun function (a b c d) 1)").parse().unwrap(),
       Expr::Function {
         name: "function",
         params: vec!["a", "b", "c", "d"],
         body: Box::new(Expr::Number(1.0))
+      }
+    );
+
+    assert_eq!(
+      Parser::new("(fun function (a b c d) (1 2 3 a b c d))")
+        .parse()
+        .unwrap(),
+      Expr::Function {
+        name: "function",
+        params: vec!["a", "b", "c", "d"],
+        body: Box::new(Expr::Compound(vec![
+          Expr::Number(1.0),
+          Expr::Number(2.0),
+          Expr::Number(3.0),
+          Expr::RefParam("a"),
+          Expr::RefParam("b"),
+          Expr::RefParam("c"),
+          Expr::RefParam("d"),
+        ]))
       }
     );
   }
