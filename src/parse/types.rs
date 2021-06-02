@@ -51,6 +51,14 @@ pub struct Span<'buf> {
 }
 
 impl<'buf> Span<'buf> {
+  pub fn eof() -> Self {
+    Self {
+      buf: "",
+      beg: Default::default(),
+      end: Default::default(),
+    }
+  }
+
   pub fn new(beg: Position, end: Position, buf: &'buf str) -> Self {
     Self { beg, end, buf }
   }

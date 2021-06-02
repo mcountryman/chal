@@ -3,133 +3,122 @@ use std::{borrow::Cow, fmt::Formatter, ops::Deref};
 
 /// Contains token type, parsed token data and, a span reference to source.
 #[derive(Clone)]
-pub struct Token<'buf> {
-  pub span: Span<'buf>,
-  pub kind: TokenKind<'buf>,
-}
+pub struct Token<'buf>(pub Span<'buf>, pub TokenKind<'buf>);
 
 impl<'buf> Token<'buf> {
   /// Returns `true` if the token is [`TokenKind::LParen`]
   pub fn is_left_paren(&self) -> bool {
-    matches!(self.kind, TokenKind::LParen)
+    matches!(self.1, TokenKind::LParen)
   }
 
   /// Returns `true` if the token is [`TokenKind::RParen`]
   pub fn is_right_paren(&self) -> bool {
-    matches!(self.kind, TokenKind::RParen)
+    matches!(self.1, TokenKind::RParen)
   }
 
   /// Returns `true` if the token is [`TokenKind::String`]
   pub fn is_string(&self) -> bool {
-    matches!(self.kind, TokenKind::String(_))
+    matches!(self.1, TokenKind::String(_))
   }
 
   /// Returns `true` if the token is [`TokenKind::Number`]
   pub fn is_number(&self) -> bool {
-    matches!(self.kind, TokenKind::Number(_))
+    matches!(self.1, TokenKind::Number(_))
   }
 
   /// Returns `true` if the token is [`TokenKind::Var`]
   pub fn is_var(&self) -> bool {
-    matches!(self.kind, TokenKind::Var(_))
+    matches!(self.1, TokenKind::Var(_))
   }
 
   /// Returns `true` if the token is [`TokenKind::Ident`]
   pub fn is_ident(&self) -> bool {
-    matches!(self.kind, TokenKind::Ident(_))
+    matches!(self.1, TokenKind::Ident(_))
   }
 
   /// Returns `true` if the token is [`TokenKind::Add`]
   pub fn is_add(&self) -> bool {
-    matches!(self.kind, TokenKind::Add)
+    matches!(self.1, TokenKind::Add)
   }
 
   /// Returns `true` if the token is [`TokenKind::Sub`]
   pub fn is_sub(&self) -> bool {
-    matches!(self.kind, TokenKind::Sub)
+    matches!(self.1, TokenKind::Sub)
   }
 
   /// Returns `true` if the token is [`TokenKind::Div`]
   pub fn is_div(&self) -> bool {
-    matches!(self.kind, TokenKind::Div)
+    matches!(self.1, TokenKind::Div)
   }
 
   /// Returns `true` if the token is [`TokenKind::Mul`]
   pub fn is_mul(&self) -> bool {
-    matches!(self.kind, TokenKind::Mul)
+    matches!(self.1, TokenKind::Mul)
   }
 
   /// Returns `true` if the token is [`TokenKind::Pow`]
   pub fn is_pow(&self) -> bool {
-    matches!(self.kind, TokenKind::Pow)
+    matches!(self.1, TokenKind::Pow)
   }
 
   /// Returns `true` if the token is [`TokenKind::Mod`]
   pub fn is_mod(&self) -> bool {
-    matches!(self.kind, TokenKind::Mod)
+    matches!(self.1, TokenKind::Mod)
   }
 
   /// Returns `true` if the token is [`TokenKind::AddInc`]
   pub fn is_add_inc(&self) -> bool {
-    matches!(self.kind, TokenKind::AddInc)
+    matches!(self.1, TokenKind::AddInc)
   }
 
   /// Returns `true` if the token is [`TokenKind::SubInc`]
   pub fn is_sub_inc(&self) -> bool {
-    matches!(self.kind, TokenKind::SubInc)
+    matches!(self.1, TokenKind::SubInc)
   }
 
   /// Returns `true` if the token is [`TokenKind::BOr`]
   pub fn is_binary_or(&self) -> bool {
-    matches!(self.kind, TokenKind::BOr)
+    matches!(self.1, TokenKind::BOr)
   }
 
   /// Returns `true` if the token is [`TokenKind::BNot`]
   pub fn is_binary_not(&self) -> bool {
-    matches!(self.kind, TokenKind::BNot)
+    matches!(self.1, TokenKind::BNot)
   }
 
   /// Returns `true` if the token is [`TokenKind::BAnd`]
   pub fn is_binary_and(&self) -> bool {
-    matches!(self.kind, TokenKind::BAnd)
+    matches!(self.1, TokenKind::BAnd)
   }
 
   /// Returns `true` if the token is [`TokenKind::BLShift`]
   pub fn is_left_shift(&self) -> bool {
-    matches!(self.kind, TokenKind::BLShift)
+    matches!(self.1, TokenKind::BLShift)
   }
 
   /// Returns `true` if the token is [`TokenKind::BRShift`]
   pub fn is_right_shift(&self) -> bool {
-    matches!(self.kind, TokenKind::BRShift)
+    matches!(self.1, TokenKind::BRShift)
   }
 
   /// Returns `true` if the token is [`TokenKind::Lt`]
   pub fn is_lt(&self) -> bool {
-    matches!(self.kind, TokenKind::Lt)
+    matches!(self.1, TokenKind::Lt)
   }
 
   /// Returns `true` if the token is [`TokenKind::LtEq`]
   pub fn is_lt_eq(&self) -> bool {
-    matches!(self.kind, TokenKind::LtEq)
+    matches!(self.1, TokenKind::LtEq)
   }
 
   /// Returns `true` if the token is [`TokenKind::Gt`]
   pub fn is_gt(&self) -> bool {
-    matches!(self.kind, TokenKind::Gt)
+    matches!(self.1, TokenKind::Gt)
   }
 
   /// Returns `true` if the token is [`TokenKind::GtEq`]
   pub fn is_gt_eq(&self) -> bool {
-    matches!(self.kind, TokenKind::GtEq)
-  }
-}
-
-impl<'buf> Deref for Token<'buf> {
-  type Target = Span<'buf>;
-
-  fn deref(&self) -> &Self::Target {
-    &self.span
+    matches!(self.1, TokenKind::GtEq)
   }
 }
 
@@ -140,13 +129,13 @@ impl<'buf> Token<'buf> {
   /// * `span` - The span.
   /// * `kind` - The token kind.
   pub fn new(span: Span<'buf>, kind: TokenKind<'buf>) -> Self {
-    Self { span, kind }
+    Self(span, kind)
   }
 }
 
 impl std::fmt::Debug for Token<'_> {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    write!(f, "Token({:?} @ {:?})", &self.kind, self.span)
+    write!(f, "Token({:?} @ {:?})", &self.1, self.0)
   }
 }
 
