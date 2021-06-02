@@ -7,6 +7,32 @@ pub struct Position {
   pub offset: usize,
 }
 
+impl Position {
+  pub fn extend(mut self, ch: char) -> Self {
+    match ch {
+      '\n' => {
+        self.line += 1;
+        self.column = 1;
+        self.offset += '\n'.len_utf8();
+      }
+      _ => {
+        self.column += 1;
+        self.offset += ch.len_utf8();
+      }
+    };
+
+    self
+  }
+
+  pub fn extend_str(mut self, value: &str) -> Self {
+    for ch in value.chars() {
+      self = self.extend(ch);
+    }
+
+    self
+  }
+}
+
 impl Default for Position {
   fn default() -> Self {
     Self {
@@ -36,12 +62,12 @@ impl<'buf> Span<'buf> {
 
 impl std::fmt::Debug for Span<'_> {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    let beg_abs = self.beg.offset;
-    let beg = cmp::max(0, beg_abs - 5);
-    let beg_len = beg_abs - beg;
+    let beg = (&self.buf[self.beg.offset.saturating_sub(30)..self.beg.offset]).rfind('\n');
+    let beg = cmp::max(0, beg.unwrap_or(self.beg.offset));
+    let beg_len = self.beg.offset - beg;
 
-    let end = self.end.offset;
-    let end = cmp::min(self.buf.len(), end + 5);
+    let end = (&self.buf[self.end.offset..self.end.offset.saturating_add(30)]).find('\n');
+    let end = cmp::min(self.buf.len(), end.unwrap_or(self.end.offset));
 
     writeln!(f, "line {}, column {}", self.end.line, self.end.column,)?;
     writeln!(f, "{}", &self.buf[beg..end])?;
@@ -88,16 +114,11 @@ pub struct PeekableExt<I: Iterator> {
   iter: I,
   /// Remember a peeked value, even if it was None.
   peeked: Option<Option<I::Item>>,
-  position: Position,
 }
 
-impl<I: Iterator + Positional> PeekableExt<I> {
+impl<I: Iterator> PeekableExt<I> {
   pub fn new(iter: I) -> PeekableExt<I> {
-    PeekableExt {
-      iter,
-      peeked: None,
-      position: iter.pos(),
-    }
+    PeekableExt { iter, peeked: None }
   }
 }
 
@@ -266,27 +287,5 @@ where
 {
   fn as_str(&self) -> &'a str {
     self.iter.as_str()
-  }
-}
-
-impl<I> Positional for PeekableExt<I>
-where
-  I: Iterator + Positional,
-{
-  fn pos(&self) -> Position {
-    self.iter.pos()
-  }
-}
-
-impl<'buf, I> Spannable<'buf> for PeekableExt<I>
-where
-  I: Iterator + Spannable<'buf>,
-{
-  fn span(&self) -> Span<'buf> {
-    self.span()
-  }
-
-  fn span_to(&self, to: Position) -> Span<'buf> {
-    self.span_to(to)
   }
 }

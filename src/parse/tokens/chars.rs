@@ -21,12 +21,14 @@ impl<'buf> TokenizerChars<'buf> {
 }
 
 impl Iterator for TokenizerChars<'_> {
-  type Item = char;
+  type Item = (Position, char);
 
   fn next(&mut self) -> Option<Self::Item> {
     let ch = self.chars.next();
     match ch {
       Some(ch) => {
+        let item = (self.pos, ch);
+
         self.pos.offset += ch.len_utf8();
 
         if ch == '\n' {
@@ -36,7 +38,7 @@ impl Iterator for TokenizerChars<'_> {
           self.pos.column += 1;
         }
 
-        Some(ch)
+        Some(item)
       }
       None => None,
     }

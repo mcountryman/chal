@@ -1,9 +1,5 @@
-use crate::parse::Span;
-use std::{
-  borrow::Cow,
-  fmt::{Display, Formatter},
-  ops::Deref,
-};
+use crate::parse::{Position, Span};
+use std::{borrow::Cow, fmt::Formatter, ops::Deref};
 
 /// Contains token type, parsed token data and, a span reference to source.
 #[derive(Clone)]
@@ -12,7 +8,7 @@ pub struct Token<'buf> {
   pub kind: TokenKind<'buf>,
 }
 
-impl Token<'_> {
+impl<'buf> Token<'buf> {
   /// Returns `true` if the token is [`TokenKind::LParen`]
   pub fn is_left_paren(&self) -> bool {
     matches!(self.kind, TokenKind::LParen)
@@ -155,7 +151,7 @@ impl std::fmt::Debug for Token<'_> {
 }
 
 /// The kind of token and relevant metadata.
-#[derive(Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum TokenKind<'buf> {
   /// Left parenthesis
   LParen,
@@ -211,38 +207,38 @@ pub enum TokenKind<'buf> {
   GtEq,
 }
 
-impl ToString for TokenKind<'_> {
-  fn to_string(&self) -> String {
-    match self {
-      TokenKind::LParen => "(".to_string(),
-      TokenKind::RParen => ")".to_string(),
-      TokenKind::String(inner) => format!("\"{}\"", inner),
-      TokenKind::Number(inner) => inner.to_string(),
-      TokenKind::Var(inner) => format!("${}", inner),
-      TokenKind::Ident(inner) => inner.to_string(),
-      TokenKind::Add => "+".to_string(),
-      TokenKind::Sub => "-".to_string(),
-      TokenKind::Div => "/".to_string(),
-      TokenKind::Mul => "*".to_string(),
-      TokenKind::Pow => "^".to_string(),
-      TokenKind::Mod => "$".to_string(),
-      TokenKind::AddInc => "++".to_string(),
-      TokenKind::SubInc => "--".to_string(),
-      TokenKind::BOr => "|".to_string(),
-      TokenKind::BNot => "^".to_string(),
-      TokenKind::BAnd => "&".to_string(),
-      TokenKind::BLShift => "<<".to_string(),
-      TokenKind::BRShift => ">>".to_string(),
-      TokenKind::Lt => "<".to_string(),
-      TokenKind::LtEq => "<=".to_string(),
-      TokenKind::Gt => ">".to_string(),
-      TokenKind::GtEq => ">=".to_string(),
-    }
+impl<'buf> TokenKind<'buf> {
+  pub fn into_token(self, span: Span<'buf>) -> Token<'buf> {
+    Token::new(span, self)
   }
 }
 
-impl std::fmt::Debug for TokenKind<'_> {
+impl std::fmt::Display for TokenKind<'_> {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}", self.to_string())
+    match self {
+      TokenKind::LParen => write!(f, "("),
+      TokenKind::RParen => write!(f, ")"),
+      TokenKind::String(inner) => write!(f, "\"{}\"", inner),
+      TokenKind::Number(inner) => write!(f, "{}", inner),
+      TokenKind::Var(inner) => write!(f, "${}", inner),
+      TokenKind::Ident(inner) => write!(f, "{}", inner),
+      TokenKind::Add => write!(f, "+"),
+      TokenKind::Sub => write!(f, "-"),
+      TokenKind::Div => write!(f, "/"),
+      TokenKind::Mul => write!(f, "*"),
+      TokenKind::Pow => write!(f, "^"),
+      TokenKind::Mod => write!(f, "$"),
+      TokenKind::AddInc => write!(f, "++"),
+      TokenKind::SubInc => write!(f, "--"),
+      TokenKind::BOr => write!(f, "|"),
+      TokenKind::BNot => write!(f, "^"),
+      TokenKind::BAnd => write!(f, "&"),
+      TokenKind::BLShift => write!(f, "<<"),
+      TokenKind::BRShift => write!(f, ">>"),
+      TokenKind::Lt => write!(f, "<"),
+      TokenKind::LtEq => write!(f, "<="),
+      TokenKind::Gt => write!(f, ">"),
+      TokenKind::GtEq => write!(f, ">="),
+    }
   }
 }
