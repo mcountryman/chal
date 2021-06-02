@@ -1,5 +1,5 @@
-use crate::parse::{Position, Span};
-use std::{borrow::Cow, fmt::Formatter, ops::Deref};
+use crate::ast::Span;
+use std::{borrow::Cow, fmt::Formatter};
 
 /// Contains token type, parsed token data and, a span reference to source.
 #[derive(Clone)]

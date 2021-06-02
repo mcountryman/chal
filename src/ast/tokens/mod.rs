@@ -264,7 +264,7 @@ impl<'buf> Iterator for Tokenizer<'buf> {
 #[cfg(test)]
 mod tests {
   use super::Tokenizer;
-  use crate::parse::{Position, TokenizeError};
+  use crate::ast::{Position, TokenizeError};
 
   #[test]
   pub fn test_eat_whitespace_end_at_non_whitespace() {

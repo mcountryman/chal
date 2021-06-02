@@ -1,4 +1,4 @@
-use crate::parse::{Span, Token, TokenizeError};
+use crate::ast::{Span, Token, TokenizeError};
 use std::error::Error;
 
 pub type ParseResult<'buf, T> = Result<T, ParseError<'buf>>;

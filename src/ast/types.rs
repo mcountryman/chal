@@ -1,4 +1,4 @@
-use std::{cmp, fmt::Formatter, iter::FusedIterator};
+use std::{cmp, fmt::Formatter};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Position {
