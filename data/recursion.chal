@@ -7,16 +7,16 @@
 (
     (print "Enter a max number: ")
     ($max (readInNumber))
-    (recursiveIncr max)
+    (recursiveIncr $counter $max)
     (print (append "Counter is at: " $counter))
 )
 
-(fun recursiveIncr ($counter max)
+(fun recursiveIncr (counter max)
     (
         (
-            if (equal $counter max) 
-            $counter
-            (recursiveIncr (++ $counter) max)
+            if (equal counter max) 
+            counter
+            (recursiveIncr (++ counter) max)
         )
     )
 )

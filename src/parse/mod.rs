@@ -22,79 +22,110 @@ impl<'buf> Parser<'buf> {
   }
 
   pub fn parse(&mut self) -> ParseResult<'buf, Expr<'buf>> {
-    Ok(self.next_expr(false)?.unwrap_or(Expr::Noop))
+    Ok(self.next_expr(0, false)?.unwrap_or_else(|| Noop.into()))
   }
 
-  fn next_expr(&mut self, first: bool) -> ParseResult<'buf, Option<Expr<'buf>>> {
-    if let Some(Ok(Token(_, TokenKind::RParen))) = self.tokens.peek() {
-      return Ok(None);
-    };
+  fn next_expr(&mut self, limit: usize, in_paren: bool) -> ParseResult<'buf, Option<Expr<'buf>>> {
+    let mut exprs = Vec::with_capacity(1);
 
-    let next = match self.tokens.next().transpose()? {
-      Some(next) => next,
-      None => return Ok(None),
-    };
+    loop {
+      if let Some(Ok(Token(_, TokenKind::RParen))) = self.tokens.peek() {
+        break;
+      };
 
-    Ok(match next {
-      Token(span, TokenKind::LParen) => {
-        let exprs = self.next_exprs(true)?;
-        match self.tokens.next().transpose()? {
-          Some(token) if token.is_right_paren() => {}
-          Some(Token(span, _)) => return Err(ParseError::expected_right_paren(&span)),
-          _ => return Err(ParseError::expected_right_paren(&span)),
-        };
-
-        match exprs.len() {
-          0 => None,
-          1 => Some(exprs[0].clone()),
-          _ => Some(Expr::Compound(exprs)),
-        }
+      if limit > 0 && exprs.len() >= limit {
+        break;
       }
 
-      Token(span, TokenKind::Ident("var")) if first => Some(Expr::Assign {
+      match self.tokens.next().transpose()? {
+        Some(Token(span, TokenKind::LParen)) => {
+          if let Some(expr) = self.next_expr(255, true)? {
+            exprs.push(expr);
+          }
+
+          match self.tokens.next().transpose()? {
+            Some(Token(_, TokenKind::RParen)) => {}
+            Some(Token(span, _)) => return Err(ParseError::expected_left_paren(&span)),
+            None => return Err(ParseError::expected_left_paren(&span)),
+          }
+        }
+
+        Some(token) => {
+          if in_paren && exprs.is_empty() {
+            if let Some(expr) = self.next_stmt(&token)? {
+              exprs.push(expr);
+              break;
+            }
+          }
+
+          if let Some(expr) = self.next_simple(&token)? {
+            exprs.push(expr);
+          } else {
+            return Err(ParseError::unexpected_token(&token));
+          }
+        }
+
+        None => break,
+      }
+    }
+
+    Ok(match exprs.len() {
+      0 => None,
+      1 => Some(exprs[0].clone()),
+      _ => Some(Compound(exprs).into()),
+    })
+  }
+
+  fn next_stmt(&mut self, token: &Token<'buf>) -> ParseResult<'buf, Option<Expr<'buf>>> {
+    Ok(Some(match token {
+      // (var ident expr)
+      Token(span, TokenKind::Ident("var")) => Assign {
         ident: self.next_ident(&span)?,
         expr: self
-          .next_expr(false)?
-          .map(Box::new)
+          .next_expr(1, false)?
           .ok_or_else(|| ParseError::expected_var_expr(&span))?,
-      }),
+      }
+      .into(),
 
-      Token(span, TokenKind::Ident("if")) if first => Some(Expr::If {
+      // (if expr expr expr?)
+      Token(span, TokenKind::Ident("if")) => If {
         condition: self
-          .next_expr(false)?
-          .map(Box::new)
+          .next_expr(1, false)?
           .ok_or_else(|| ParseError::expected_if_condition(&span))?,
         body: self
-          .next_expr(false)?
-          .map(Box::new)
+          .next_expr(1, false)?
           .ok_or_else(|| ParseError::expected_if_body(&span))?,
-        fallthrough: self.next_expr(false)?.map(Box::new),
-      }),
+        fallthrough: self.next_expr(1, false)?,
+      }
+      .into(),
 
-      Token(span, TokenKind::Ident("fun")) if first => Some(Expr::Function {
+      // (fun ident (ident*) expr)
+      Token(span, TokenKind::Ident("fun")) => Function {
         name: self.next_ident(&span)?,
         params: self.next_params(&span)?,
         body: self
-          .next_expr(false)?
-          .map(Box::new)
+          .next_expr(0, false)?
           .ok_or_else(|| ParseError::expected_func_body(&span))?,
-      }),
+      }
+      .into(),
 
-      Token(_, TokenKind::Ident(ident)) if first => Some(match self.tokens.peek().cloned() {
-        Some(Ok(Token(_, TokenKind::RParen))) => Expr::RefParam(ident),
-        _ => Expr::Call {
+      // (ident expr*)
+      Token(_, TokenKind::Ident(ident)) => match self.tokens.peek().cloned() {
+        Some(Ok(Token(_, TokenKind::RParen))) => RefParam(ident).into(),
+        _ => Call {
           name: ident,
-          args: self.next_exprs(false)?,
-        },
-      }),
+          args: self.next_expr(0, false)?,
+        }
+        .into(),
+      },
 
-      Token(span, TokenKind::Var(var)) if first => Some(match self.tokens.peek().cloned() {
+      Token(span, TokenKind::Var(ident)) => match self.tokens.peek().cloned() {
         Some(Ok(Token(paren, TokenKind::LParen))) => {
           // Consume `(`
           self.tokens.next().transpose()?;
 
           let name = self.next_ident(&span)?;
-          let args = self.next_exprs(false)?;
+          let args = self.next_expr(0, false)?;
 
           match self
             .tokens
@@ -106,186 +137,87 @@ impl<'buf> Parser<'buf> {
             Token(span, _) => return Err(ParseError::expected_right_paren(&span)),
           }
 
-          Expr::CallRet { var, name, args }
+          Assign {
+            ident,
+            expr: Call { name, args }.into(),
+          }
+          .into()
         }
-        _ => Expr::RefVar(var),
-      }),
+        _ => RefVar(ident).into(),
+      },
 
-      Token(span, TokenKind::Add) if first => Some(self.next_binary_op(BinaryOperator::Add, span)?),
-      Token(span, TokenKind::Sub) if first => Some(self.next_binary_op(BinaryOperator::Sub, span)?),
-      Token(span, TokenKind::Mul) if first => Some(self.next_binary_op(BinaryOperator::Mul, span)?),
-      Token(span, TokenKind::Div) if first => Some(self.next_binary_op(BinaryOperator::Div, span)?),
-      Token(span, TokenKind::Pow) if first => Some(self.next_binary_op(BinaryOperator::Pow, span)?),
-      Token(span, TokenKind::Mod) if first => Some(self.next_binary_op(BinaryOperator::Mod, span)?),
-      Token(span, TokenKind::BOr) if first => Some(self.next_binary_op(BinaryOperator::BOr, span)?),
-      Token(span, TokenKind::BAnd) if first => {
-        Some(self.next_binary_op(BinaryOperator::BAnd, span)?)
-      }
-      Token(span, TokenKind::BLShift) if first => {
-        Some(self.next_binary_op(BinaryOperator::BLShift, span)?)
-      }
-      Token(span, TokenKind::BRShift) if first => {
-        Some(self.next_binary_op(BinaryOperator::BRShift, span)?)
-      }
-      Token(span, TokenKind::Gt) if first => Some(self.next_binary_op(BinaryOperator::Gt, span)?),
-      Token(span, TokenKind::Lt) if first => Some(self.next_binary_op(BinaryOperator::Lt, span)?),
-      Token(span, TokenKind::GtEq) if first => {
-        Some(self.next_binary_op(BinaryOperator::GtEq, span)?)
-      }
-      Token(span, TokenKind::LtEq) if first => {
-        Some(self.next_binary_op(BinaryOperator::LtEq, span)?)
-      }
+      Token(span, TokenKind::Add) => self.next_binary_op(BinaryOperator::Add, span)?,
+      Token(span, TokenKind::Sub) => self.next_binary_op(BinaryOperator::Sub, span)?,
+      Token(span, TokenKind::Mul) => self.next_binary_op(BinaryOperator::Mul, span)?,
+      Token(span, TokenKind::Div) => self.next_binary_op(BinaryOperator::Div, span)?,
+      Token(span, TokenKind::Pow) => self.next_binary_op(BinaryOperator::Pow, span)?,
+      Token(span, TokenKind::Mod) => self.next_binary_op(BinaryOperator::Mod, span)?,
+      Token(span, TokenKind::BOr) => self.next_binary_op(BinaryOperator::BOr, span)?,
+      Token(span, TokenKind::BAnd) => self.next_binary_op(BinaryOperator::BAnd, span)?,
+      Token(span, TokenKind::BLShift) => self.next_binary_op(BinaryOperator::BLShift, span)?,
+      Token(span, TokenKind::BRShift) => self.next_binary_op(BinaryOperator::BRShift, span)?,
+      Token(span, TokenKind::Gt) => self.next_binary_op(BinaryOperator::Gt, span)?,
+      Token(span, TokenKind::Lt) => self.next_binary_op(BinaryOperator::Lt, span)?,
+      Token(span, TokenKind::GtEq) => self.next_binary_op(BinaryOperator::GtEq, span)?,
+      Token(span, TokenKind::LtEq) => self.next_binary_op(BinaryOperator::LtEq, span)?,
 
-      Token(span, TokenKind::BNot) if first => Some(self.next_unary_op(UnaryOperator::BNot, span)?),
-      Token(span, TokenKind::AddInc) if first => {
-        Some(self.next_unary_op(UnaryOperator::AddInc, span)?)
-      }
-      Token(span, TokenKind::SubInc) if first => {
-        Some(self.next_unary_op(UnaryOperator::SubInc, span)?)
-      }
+      Token(span, TokenKind::BNot) => self.next_unary_op(UnaryOperator::BNot, span)?,
+      Token(span, TokenKind::AddInc) => self.next_unary_op(UnaryOperator::AddInc, span)?,
+      Token(span, TokenKind::SubInc) => self.next_unary_op(UnaryOperator::SubInc, span)?,
 
-      token => Some(self.next_simple(token)?),
-    })
+      _ => return Ok(None),
+    }))
   }
 
-  fn next_simple(&mut self, token: Token<'buf>) -> ParseResult<'buf, Expr<'buf>> {
-    match token {
-      Token(_, TokenKind::Var(value)) => Ok(Expr::RefVar(value)),
-      Token(_, TokenKind::Ident(value)) => Ok(Expr::RefParam(value)),
-      Token(_, TokenKind::Number(value)) => Ok(Expr::Number(value)),
-      Token(_, TokenKind::String(value)) => Ok(Expr::String(value)),
+  fn next_simple(&mut self, token: &Token<'buf>) -> ParseResult<'buf, Option<Expr<'buf>>> {
+    Ok(Some(match token {
+      Token(_, TokenKind::Var(value)) => RefVar(value).into(),
+      Token(_, TokenKind::Ident(value)) => RefParam(value).into(),
+      Token(_, TokenKind::Number(value)) => NumberLit(*value).into(),
+      Token(_, TokenKind::String(value)) => StringLit(value.clone()).into(),
 
-      _ => Err(ParseError::unexpected_token(&token)),
-    }
-  }
-
-  fn next_exprs(&mut self, mut first: bool) -> ParseResult<'buf, Vec<Expr<'buf>>> {
-    let mut exprs = Vec::new();
-
-    while let Some(expr) = self.next_expr(first)? {
-      first = false;
-      exprs.push(expr);
-    }
-
-    Ok(exprs)
+      _ => return Ok(None),
+    }))
   }
 
   fn next_binary_op(
     &mut self,
     op: BinaryOperator,
-    span: Span<'buf>,
+    span: &Span<'buf>,
   ) -> ParseResult<'buf, Expr<'buf>> {
-    Ok(Expr::BinaryOp {
-      op,
-      lhs: self
-        .next_expr(false)?
-        .map(Box::new)
-        .ok_or_else(|| ParseError::expected_op_lhs(&span))?,
-      rhs: self
-        .next_expr(false)?
-        .map(Box::new)
-        .ok_or_else(|| ParseError::expected_op_lhs(&span))?,
-    })
+    Ok(
+      BinaryOp {
+        op,
+        lhs: self
+          .next_expr(1, false)?
+          .ok_or_else(|| ParseError::expected_op_lhs(span))?,
+        rhs: self
+          .next_expr(1, false)?
+          .ok_or_else(|| ParseError::expected_op_lhs(span))?,
+      }
+      .into(),
+    )
   }
 
   fn next_unary_op(
     &mut self,
     op: UnaryOperator,
-    span: Span<'buf>,
+    span: &Span<'buf>,
   ) -> ParseResult<'buf, Expr<'buf>> {
-    Ok(Expr::UnaryOp {
-      op,
-      expr: self
-        .next_expr(false)?
-        .map(Box::new)
-        .ok_or_else(|| ParseError::expected_op_lhs(&span))?,
-    })
-  }
-
-  //   fn next_expr(&mut self) -> ParseResult<'buf, Option<Expr<'buf>>> {
-  //     Ok(match self.tokens.next().transpose()? {
-  //       Some(token) => match token.kind {
-  //         TokenKind::LParen => {
-  //           let expr = self.next_expr_many()?;
-  //           match self.tokens.next().transpose()? {
-  //             Some(token) if token.is_right_paren() => {}
-  //             Some(token) => return Err(ParseError::expected_right_paren(token.span)),
-  //             None => return Err(ParseError::expected_right_paren(self.tokens.span())),
-  //           };
-
-  //           Some(expr)
-  //         }
-
-  //         TokenKind::Ident("var") => Some(Expr::Assign {
-  //           ident: self.next_ident()?,
-  //           expr: self
-  //             .next_expr()?
-  //             .map(Box::new)
-  //             .ok_or_else(|| ParseError::expected_var_expr(self.tokens.span()))?,
-  //         }),
-
-  //         TokenKind::Ident("if") => Some(Expr::If {
-  //           condition: self
-  //             .next_expr()?
-  //             .map(Box::new)
-  //             .ok_or_else(|| ParseError::expected_if_condition(self.tokens.span()))?,
-  //           body: self
-  //             .next_expr()?
-  //             .map(Box::new)
-  //             .ok_or_else(|| ParseError::expected_if_body(self.tokens.span()))?,
-  //           fallthrough: self.next_expr()?.map(Box::new),
-  //         }),
-
-  //         TokenKind::Ident("fun") => Some(Expr::Function {
-  //           name: self.next_ident()?,
-  //           params: self.next_params()?,
-  //           body: self
-  //             .next_expr()?
-  //             .map(Box::new)
-  //             .ok_or_else(|| ParseError::expected_func_body(self.tokens.span()))?,
-  //         }),
-
-  //         _ => Some(self.next_expr_simple(token)?),
-  //       },
-  //       None => None,
-  //     })
-  //   }
-
-  //   fn next_expr_simple(&mut self, token: Token<'buf>) -> ParseResult<'buf, Expr<'buf>> {
-  //     match token.kind {
-  //       TokenKind::Number(value) => Ok(Expr::Number(value)),
-  //       TokenKind::String(value) => Ok(Expr::String(value)),
-  //       TokenKind::Var(value) => Ok(Expr::RefVar(value)),
-  //       TokenKind::Ident(value) => Ok(Expr::RefParam(value)),
-  //       _ => Err(ParseError::unexpected_token(token)),
-  //     }
-  //   }
-
-  //   fn next_expr_many(&mut self) -> ParseResult<'buf, Expr<'buf>> {
-  //     let mut exprs = Vec::new();
-
-  //     while let Some(expr) = self.next_expr()? {
-  //       exprs.push(expr);
-  //     }
-
-  //     Ok(match exprs.len() {
-  //       0 => Expr::Noop,
-  //       1 => exprs[0].clone(),
-  //       _ => Expr::Compound(exprs),
-  //     })
-  //   }
-
-  fn next_var(&mut self, beg: &Span<'buf>) -> ParseResult<'buf, &'buf str> {
-    match self.tokens.next().transpose()? {
-      Some(Token(span, TokenKind::Var(var))) => Ok(var),
-      Some(Token(span, _)) => Err(ParseError::expected_var_expr(&span)),
-      _ => Err(ParseError::expected_var_expr(beg)),
-    }
+    Ok(
+      UnaryOp {
+        op,
+        expr: self
+          .next_expr(1, false)?
+          .ok_or_else(|| ParseError::expected_op_lhs(span))?,
+      }
+      .into(),
+    )
   }
 
   fn next_ident(&mut self, beg: &Span<'buf>) -> ParseResult<'buf, &'buf str> {
     match self.tokens.next().transpose()? {
-      Some(Token(span, TokenKind::Ident(ident))) => Ok(ident),
+      Some(Token(_, TokenKind::Ident(ident))) => Ok(ident),
       Some(Token(span, _)) => Err(ParseError::expected_ident(&span)),
       _ => Err(ParseError::expected_ident(beg)),
     }
@@ -313,14 +245,14 @@ impl<'buf> Parser<'buf> {
 
 #[cfg(test)]
 mod tests {
-  use super::{Expr, Parser};
+  use super::*;
   use std::borrow::Cow;
 
   #[test]
   fn test_parse_var() {
     assert_eq!(
       Parser::new("$variable").parse().unwrap(),
-      Expr::RefVar("variable")
+      RefVar("variable").into()
     );
   }
 
@@ -328,20 +260,23 @@ mod tests {
   fn test_parse_ident() {
     assert_eq!(
       Parser::new("variable").parse().unwrap(),
-      Expr::RefParam("variable")
+      RefParam("variable").into()
     );
   }
 
   #[test]
   fn test_parse_number() {
-    assert_eq!(Parser::new("69420").parse().unwrap(), Expr::Number(69420.0));
+    assert_eq!(
+      Parser::new("69420").parse().unwrap(),
+      NumberLit(69420.0).into()
+    );
   }
 
   #[test]
   fn test_parse_string() {
     assert_eq!(
       Parser::new("\"string\"").parse().unwrap(),
-      Expr::String(Cow::from("string"))
+      StringLit(Cow::from("string")).into()
     );
   }
 
@@ -349,7 +284,7 @@ mod tests {
   fn test_nested() {
     assert_eq!(
       Parser::new("((((((\"string\"))))))").parse().unwrap(),
-      Expr::String(Cow::from("string"))
+      StringLit(Cow::from("string")).into()
     );
   }
 
@@ -357,7 +292,7 @@ mod tests {
   fn test_compund() {
     assert_eq!(
       Parser::new("(1 2)").parse().unwrap(),
-      Expr::Compound(vec![Expr::Number(1.0), Expr::Number(2.0)])
+      Compound(vec![NumberLit(1.0).into(), NumberLit(2.0).into()]).into()
     );
   }
 
@@ -365,18 +300,20 @@ mod tests {
   fn test_parse_assign() {
     assert_eq!(
       Parser::new("(var variable 1)").parse().unwrap(),
-      Expr::Assign {
+      Assign {
         ident: "variable",
-        expr: Box::new(Expr::Number(1.0))
+        expr: NumberLit(1.0).into()
       }
+      .into()
     );
 
     assert_eq!(
       Parser::new("((var variable (1)))").parse().unwrap(),
-      Expr::Assign {
+      Assign {
         ident: "variable",
-        expr: Box::new(Expr::Number(1.0))
+        expr: NumberLit(1.0).into()
       }
+      .into()
     );
   }
 
@@ -384,20 +321,22 @@ mod tests {
   fn test_if() {
     assert_eq!(
       Parser::new("(if $variable 1 0)").parse().unwrap(),
-      Expr::If {
-        condition: Box::new(Expr::RefVar("variable")),
-        body: Box::new(Expr::Number(1.0)),
-        fallthrough: Some(Box::new(Expr::Number(0.0)))
+      If {
+        condition: RefVar("variable").into(),
+        body: NumberLit(1.0).into(),
+        fallthrough: Some(NumberLit(0.0).into())
       }
+      .into()
     );
 
     assert_eq!(
       Parser::new("(if $variable 1)").parse().unwrap(),
-      Expr::If {
-        condition: Box::new(Expr::RefVar("variable")),
-        body: Box::new(Expr::Number(1.0)),
+      If {
+        condition: RefVar("variable").into(),
+        body: NumberLit(1.0).into(),
         fallthrough: None
       }
+      .into()
     );
   }
 
@@ -405,30 +344,33 @@ mod tests {
   fn test_func() {
     assert_eq!(
       Parser::new("(fun function (a b c d) 1)").parse().unwrap(),
-      Expr::Function {
+      Function {
         name: "function",
         params: vec!["a", "b", "c", "d"],
-        body: Box::new(Expr::Number(1.0))
+        body: NumberLit(1.0).into()
       }
+      .into()
     );
 
     assert_eq!(
       Parser::new("(fun function (a b c d) (1 2 3 a b c d))")
         .parse()
         .unwrap(),
-      Expr::Function {
+      Function {
         name: "function",
         params: vec!["a", "b", "c", "d"],
-        body: Box::new(Expr::Compound(vec![
-          Expr::Number(1.0),
-          Expr::Number(2.0),
-          Expr::Number(3.0),
-          Expr::RefParam("a"),
-          Expr::RefParam("b"),
-          Expr::RefParam("c"),
-          Expr::RefParam("d"),
-        ]))
+        body: Compound(vec![
+          NumberLit(1.0).into(),
+          NumberLit(2.0).into(),
+          NumberLit(3.0).into(),
+          RefParam("a").into(),
+          RefParam("b").into(),
+          RefParam("c").into(),
+          RefParam("d").into(),
+        ])
+        .into()
       }
+      .into()
     );
   }
 
@@ -436,15 +378,19 @@ mod tests {
   fn test_call() {
     assert_eq!(
       Parser::new("(function 1 2 3 4)").parse().unwrap(),
-      Expr::Call {
+      Call {
         name: "function",
-        args: vec![
-          Expr::Number(1.0),
-          Expr::Number(2.0),
-          Expr::Number(3.0),
-          Expr::Number(4.0),
-        ]
+        args: Some(
+          Compound(vec![
+            NumberLit(1.0).into(),
+            NumberLit(2.0).into(),
+            NumberLit(3.0).into(),
+            NumberLit(4.0).into(),
+          ])
+          .into()
+        )
       }
+      .into()
     );
   }
 
@@ -452,90 +398,44 @@ mod tests {
   fn test_call_ret() {
     assert_eq!(
       Parser::new("($output (function 1 2 3 4))").parse().unwrap(),
-      Expr::CallRet {
-        var: "output",
-        name: "function",
-        args: vec![
-          Expr::Number(1.0),
-          Expr::Number(2.0),
-          Expr::Number(3.0),
-          Expr::Number(4.0),
-        ]
+      Assign {
+        ident: "output",
+        expr: Call {
+          name: "function",
+          args: Some(
+            Compound(vec![
+              NumberLit(1.0).into(),
+              NumberLit(2.0).into(),
+              NumberLit(3.0).into(),
+              NumberLit(4.0).into(),
+            ])
+            .into()
+          )
+        }
+        .into()
       }
+      .into()
     );
   }
 
   #[test]
-  pub fn test_parse_errors_chal() {
-    println!(
-      "{:#?}",
-      Parser::new(include_str!("../../data/errors.chal"))
-        .parse()
-        .unwrap()
-    );
+  pub fn test_stmt_expr_chain() {
+    assert!(Parser::new("(if 1 1 1 3)").parse().is_err())
   }
 
-  // #[test]
-  // pub fn test_parse_fizzbuzz_chal() {
-  //   assert_eq!(
-  //     Parser::new(include_str!("../../data/fizzbuzz.chal"))
-  //       .parse()
-  //       .unwrap(),
-  //     Block(vec![
-  //       Expr::Assign {
-  //         ident: "counter",
-  //         expr: Box::new(Expr::Number(0.0))
-  //       },
-  //       Expr::Call {
-  //         name: "recursiveIncr",
-  //         args: vec![Expr::Number(100.0)]
-  //       },
-  //       Expr::Function {
-  //         name: "recursiveIncr",
-  //         params: vec!["max"],
-  //         body: Box::new(Expr::Compound(vec![Expr::Call {
-  //           name: "print",
-  //           args: vec![Expr::Call {
-  //             name: "fizzbuzz",
-  //             args: vec![Expr::RefVar("counter")]
-  //           }]
-  //         }]))
-  //       } // (var counter 0)
+  #[test]
+  pub fn test_parse_errors_chal() {
+    assert!(Parser::new(include_str!("../../data/errors.chal"))
+      .parse()
+      .is_err())
+  }
 
-  //         // #entry point
-  //         // (
-  //         //     (recursiveIncr 100)
-  //         // )
-
-  //         // (fun recursiveIncr (max)
-  //         //    (
-  //         //         (print (fizzbuzz $counter))
-
-  //         //         (
-  //         //             if (equal $counter max)
-  //         //             $counter
-  //         //             (recursiveIncr (++ $counter) max)
-  //         //         )
-  //         //     )
-  //         // )
-
-  //         // (fun fizzbuzz (value)
-  //         //     (
-  //         //         (if (equal (* 15 (/ 15 value)) value)
-  //         //             "Fizzbuzz"
-  //         //             (if (equal (* 5 (/ 5 value)) value)
-  //         //                 "Buzz"
-  //         //                 (if (equal (* 3 (/ 3 value)) value)
-  //         //                     "Fizz"
-  //         //                      value
-  //         //                 )
-  //         //             )
-  //         //         )
-  //         //     )
-  //         // )
-  //     ])
-  //   );
-  // }
+  #[test]
+  pub fn test_parse_fizzbuzz_chal() {
+    Parser::new(include_str!("../../data/fizzbuzz.chal"))
+      .parse()
+      .unwrap();
+  }
 
   #[test]
   pub fn test_parse_math_chal() {
@@ -565,19 +465,18 @@ mod tests {
       .unwrap();
   }
 
-  // #[test]
-  // #[cfg_attr(miri, ignore)]
-  // pub fn test_parse_stress() {
-  //   let merged = concat!(
-  //     include_str!("../../data/errors.chal"),
-  //     include_str!("../../data/fizzbuzz.chal"),
-  //     include_str!("../../data/math.chal"),
-  //     include_str!("../../data/recursion.chal"),
-  //     include_str!("../../data/string.chal"),
-  //     include_str!("../../data/whitespace.chal"),
-  //   )
-  //   .repeat(1_000);
+  #[test]
+  #[cfg_attr(miri, ignore)]
+  pub fn test_parse_stress() {
+    let merged = concat!(
+      include_str!("../../data/fizzbuzz.chal"),
+      include_str!("../../data/math.chal"),
+      include_str!("../../data/recursion.chal"),
+      include_str!("../../data/string.chal"),
+      include_str!("../../data/whitespace.chal"),
+    )
+    .repeat(1_000);
 
-  //   Parser::new(&merged).parse().unwrap();
-  // }
+    Parser::new(&merged).parse().unwrap();
+  }
 }

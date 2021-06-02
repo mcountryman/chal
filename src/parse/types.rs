@@ -62,26 +62,35 @@ impl<'buf> Span<'buf> {
   pub fn new(beg: Position, end: Position, buf: &'buf str) -> Self {
     Self { beg, end, buf }
   }
-
-  pub fn as_str(&self) -> &'buf str {
-    &self.buf[self.beg.offset..self.end.offset]
-  }
 }
 
 impl std::fmt::Debug for Span<'_> {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    let beg = (&self.buf[self.beg.offset.saturating_sub(30)..self.beg.offset]).rfind('\n');
-    let beg = cmp::max(0, beg.unwrap_or(self.beg.offset));
-    let beg_len = self.beg.offset - beg;
+    write!(f, "line {}, column {}", self.end.line, self.end.column)
+  }
+}
 
-    let end = (&self.buf[self.end.offset..self.end.offset.saturating_add(30)]).find('\n');
-    let end = cmp::min(self.buf.len(), end.unwrap_or(self.end.offset));
+impl std::fmt::Display for Span<'_> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    let beg_pad = self.beg.offset.saturating_sub(30);
+    let beg_pad = &self.buf[beg_pad..self.beg.offset]
+      .rfind('\n')
+      .unwrap_or(beg_pad);
 
-    writeln!(f, "line {}, column {}", self.end.line, self.end.column,)?;
-    writeln!(f, "{}", &self.buf[beg..end])?;
-    writeln!(f, "{}^", "-".repeat(beg_len))?;
+    let end_pad = self.end.offset.saturating_add(30);
+    let end_pad = cmp::min(end_pad, self.buf.len());
+    let end_pad = &self.buf[self.end.offset..end_pad]
+      .find('\n')
+      .unwrap_or(end_pad);
 
-    Ok(())
+    writeln!(f, "--> line {}, column {}", self.end.line, self.end.column,)?;
+    writeln!(f, "{} | {}", self.beg.line, &self.buf[*beg_pad..*end_pad])?;
+    writeln!(
+      f,
+      "{}{}",
+      " ".repeat(self.beg.offset - beg_pad),
+      "^".repeat(self.end.offset - self.beg.offset)
+    )
   }
 }
 
