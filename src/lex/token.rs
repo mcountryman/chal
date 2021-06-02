@@ -1,4 +1,4 @@
-use crate::ast::Span;
+use crate::types::Span;
 use std::{borrow::Cow, fmt::Formatter};
 
 /// Contains token type, parsed token data and, a span reference to source.

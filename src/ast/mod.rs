@@ -1,23 +1,23 @@
 pub mod error;
 pub mod expr;
-pub mod tokens;
-pub mod types;
 
 pub use error::*;
 pub use expr::*;
-pub use tokens::*;
-pub use types::*;
 
+use crate::{
+  lex::{Lexer, Token, TokenKind},
+  types::Span,
+};
 use std::iter::Peekable;
 
 pub struct Parser<'buf> {
-  tokens: Peekable<Tokenizer<'buf>>,
+  tokens: Peekable<Lexer<'buf>>,
 }
 
 impl<'buf> Parser<'buf> {
   pub fn new(buf: &'buf str) -> Self {
     Self {
-      tokens: Tokenizer::new(buf).peekable(),
+      tokens: Lexer::new(buf).peekable(),
     }
   }
 

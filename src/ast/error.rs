@@ -1,4 +1,7 @@
-use crate::ast::{Span, Token, TokenizeError};
+use crate::{
+  lex::{LexError, Token},
+  types::Span,
+};
 use std::error::Error;
 
 pub type ParseResult<'buf, T> = Result<T, ParseError<'buf>>;
@@ -6,7 +9,7 @@ pub type ParseResult<'buf, T> = Result<T, ParseError<'buf>>;
 /// An error which can be returned when tokenizing a str.
 #[derive(Clone)]
 pub enum ParseError<'buf> {
-  Tokenize(TokenizeError<'buf>),
+  Lex(LexError<'buf>),
   Unexpected(String, Span<'buf>),
   UnexpectedToken(String, Token<'buf>),
   Missing(String, Span<'buf>),
@@ -70,16 +73,16 @@ impl<'buf> ParseError<'buf> {
   }
 }
 
-impl<'buf> From<TokenizeError<'buf>> for ParseError<'buf> {
-  fn from(inner: TokenizeError<'buf>) -> Self {
-    ParseError::Tokenize(inner)
+impl<'buf> From<LexError<'buf>> for ParseError<'buf> {
+  fn from(inner: LexError<'buf>) -> Self {
+    ParseError::Lex(inner)
   }
 }
 
 impl std::fmt::Debug for ParseError<'_> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      ParseError::Tokenize(err) => write!(f, "{:?}", err),
+      ParseError::Lex(err) => write!(f, "{:?}", err),
       ParseError::Unexpected(message, span) => write!(f, "{} at {:?}", message, span),
       ParseError::UnexpectedToken(message, token) => {
         write!(f, "{} `{:?}` at {:?}", message, token.1, token.0)

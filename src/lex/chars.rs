@@ -1,15 +1,15 @@
-use crate::ast::{AsStr, Position, Positional, Span, Spannable};
+use crate::types::{AsStr, Position, Positional, Span, Spannable};
 use std::str::Chars;
 
 /// An iterator over characters with position tracking.
 #[derive(Debug, Clone)]
-pub struct TokenizerChars<'buf> {
+pub struct LexerChars<'buf> {
   buf: &'buf str,
   pos: Position,
   chars: Chars<'buf>,
 }
 
-impl<'buf> TokenizerChars<'buf> {
+impl<'buf> LexerChars<'buf> {
   /// Create [`TokenizerChars`]
   pub fn new(buf: &'buf str) -> Self {
     Self {
@@ -20,7 +20,7 @@ impl<'buf> TokenizerChars<'buf> {
   }
 }
 
-impl Iterator for TokenizerChars<'_> {
+impl Iterator for LexerChars<'_> {
   type Item = (Position, char);
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -45,19 +45,19 @@ impl Iterator for TokenizerChars<'_> {
   }
 }
 
-impl<'a> AsStr<'a> for TokenizerChars<'a> {
+impl<'a> AsStr<'a> for LexerChars<'a> {
   fn as_str(&self) -> &'a str {
     self.chars.as_str()
   }
 }
 
-impl Positional for TokenizerChars<'_> {
+impl Positional for LexerChars<'_> {
   fn pos(&self) -> Position {
     self.pos
   }
 }
 
-impl<'buf> Spannable<'buf> for TokenizerChars<'buf> {
+impl<'buf> Spannable<'buf> for LexerChars<'buf> {
   fn span(&self) -> Span<'buf> {
     Span::new(self.pos, self.pos, self.buf)
   }

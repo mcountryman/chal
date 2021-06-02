@@ -6,7 +6,7 @@ pub use chars::*;
 pub use error::*;
 pub use token::*;
 
-use super::{Position, Span};
+use crate::types::{Position, Span};
 use std::{borrow::Cow, iter::Peekable};
 
 /// An iterator over the tokens of a str.
@@ -14,20 +14,20 @@ use std::{borrow::Cow, iter::Peekable};
 /// # Lifetimes
 /// * `'buf` - The lifetime of the source buffer.
 #[derive(Debug, Clone)]
-pub struct Tokenizer<'buf> {
+pub struct Lexer<'buf> {
   buf: &'buf str,
-  chars: Peekable<TokenizerChars<'buf>>,
+  chars: Peekable<LexerChars<'buf>>,
 }
 
-impl<'buf> Tokenizer<'buf> {
-  /// Create new instance of tokenizer.
+impl<'buf> Lexer<'buf> {
+  /// Create new instance of lexer.
   ///
   /// # Arguments
-  /// * `buf` - The source buffer to tokenize.
+  /// * `buf` - The source buffer to lex.
   pub fn new(buf: &'buf str) -> Self {
     Self {
       buf,
-      chars: TokenizerChars::new(buf).peekable(),
+      chars: LexerChars::new(buf).peekable(),
     }
   }
 
@@ -65,7 +65,7 @@ impl<'buf> Tokenizer<'buf> {
     &mut self,
     beg: Position,
     mut has_alpha_or_underscore: bool,
-  ) -> TokenizeResult<'buf, &'buf str> {
+  ) -> LexResult<'buf, &'buf str> {
     loop {
       match self.chars.peek() {
         Some((_, ch)) if ch.is_alphabetic() || *ch == '_' => {
@@ -76,7 +76,7 @@ impl<'buf> Tokenizer<'buf> {
           // If we encounter a numeric character before an alphanumeric or underscore char
           // we indicate the variable is invalid.
           if !has_alpha_or_underscore {
-            return Err(TokenizeError::bad_ident_numeric_before_alpha(Span::new(
+            return Err(LexError::bad_ident_numeric_before_alpha(Span::new(
               beg, *pos, self.buf,
             )));
           }
@@ -94,7 +94,7 @@ impl<'buf> Tokenizer<'buf> {
   /// # Arguments
   /// * `beg` - The position before token starts (used for marking locations in errors)
   /// * `quote` - The opening quote character.
-  fn eat_string(&mut self, beg: Position, quote: char) -> TokenizeResult<'buf, Cow<'buf, str>> {
+  fn eat_string(&mut self, beg: Position, quote: char) -> LexResult<'buf, Cow<'buf, str>> {
     let pos_pre_quote = beg;
     let beg = beg.extend(quote);
 
@@ -109,7 +109,7 @@ impl<'buf> Tokenizer<'buf> {
           return Ok(inner);
         }
         Some((_, '\n')) => {
-          return Err(TokenizeError::bad_string_unexpected_eol(
+          return Err(LexError::bad_string_unexpected_eol(
             self.span_at(pos_pre_quote),
           ))
         }
@@ -117,7 +117,7 @@ impl<'buf> Tokenizer<'buf> {
           self.chars.next();
         }
         None => {
-          return Err(TokenizeError::bad_string_unexpected_eof(
+          return Err(LexError::bad_string_unexpected_eof(
             self.span_at(pos_pre_quote),
           ))
         }
@@ -129,7 +129,7 @@ impl<'buf> Tokenizer<'buf> {
   ///
   /// # Arguments
   /// * `beg` - The position before token starts (used for marking locations in errors)
-  fn eat_number(&mut self, beg: Position) -> TokenizeResult<'buf, f64> {
+  fn eat_number(&mut self, beg: Position) -> LexResult<'buf, f64> {
     // Consume numeric characters and decimal characters.
     let mut eat_number = || loop {
       match self.chars.peek() {
@@ -146,12 +146,12 @@ impl<'buf> Tokenizer<'buf> {
     // Parse float
     match raw.parse::<f64>() {
       Ok(num) => Ok(num),
-      Err(err) => Err(TokenizeError::BadNumber(err, self.span_at(beg))),
+      Err(err) => Err(LexError::BadNumber(err, self.span_at(beg))),
     }
   }
 
   /// Consume next token and return.
-  fn next_token(&mut self) -> TokenizeResult<'buf, Option<Token<'buf>>> {
+  fn next_token(&mut self) -> LexResult<'buf, Option<Token<'buf>>> {
     // Position before token start
     let (beg, kind) = match self.chars.next() {
       // Prioritize parens
@@ -239,7 +239,7 @@ impl<'buf> Tokenizer<'buf> {
       // Handle unexpected character
       Some((pos, ch)) => {
         let span = Span::new(pos, pos.extend(ch), self.buf);
-        let error = TokenizeError::unexpected_char(span);
+        let error = LexError::unexpected_char(span);
 
         return Err(error);
       }
@@ -252,8 +252,8 @@ impl<'buf> Tokenizer<'buf> {
   }
 }
 
-impl<'buf> Iterator for Tokenizer<'buf> {
-  type Item = TokenizeResult<'buf, Token<'buf>>;
+impl<'buf> Iterator for Lexer<'buf> {
+  type Item = LexResult<'buf, Token<'buf>>;
 
   fn next(&mut self) -> Option<Self::Item> {
     self.eat_whitespace_and_comments();
@@ -263,77 +263,76 @@ impl<'buf> Iterator for Tokenizer<'buf> {
 
 #[cfg(test)]
 mod tests {
-  use super::Tokenizer;
-  use crate::ast::{Position, TokenizeError};
+  use super::Lexer;
+  use crate::{lex::LexError, types::Position};
 
   #[test]
   pub fn test_eat_whitespace_end_at_non_whitespace() {
-    let mut tokenizer = Tokenizer::new("  \t\r\n!");
-    tokenizer.eat_whitespace_and_comments();
+    let mut lexer = Lexer::new("  \t\r\n!");
+    lexer.eat_whitespace_and_comments();
 
     // Check last character in buffer
-    assert_eq!(tokenizer.chars.next().unwrap().1, '!');
+    assert_eq!(lexer.chars.next().unwrap().1, '!');
   }
 
   #[test]
   pub fn test_eat_whitespace_end_at_end_of_stream() {
-    let mut tokenizer = Tokenizer::new("  \t\r\n");
-    tokenizer.eat_whitespace_and_comments();
+    let mut lexer = Lexer::new("  \t\r\n");
+    lexer.eat_whitespace_and_comments();
   }
 
   #[test]
   pub fn test_eat_comment_end_at_non_comment() {
-    let mut tokenizer = Tokenizer::new("# This is a comment\n# This is another comment\n!");
-    tokenizer.eat_whitespace_and_comments();
+    let mut lexer = Lexer::new("# This is a comment\n# This is another comment\n!");
+    lexer.eat_whitespace_and_comments();
 
     // Check last character in buffer
-    assert_eq!(tokenizer.chars.next().unwrap().1, '!');
+    assert_eq!(lexer.chars.next().unwrap().1, '!');
   }
 
   #[test]
   pub fn test_eat_comment_end_at_end_of_stream() {
-    let mut tokenizer = Tokenizer::new("# This is a comment\n# This is another comment\n");
-    tokenizer.eat_whitespace_and_comments();
+    let mut lexer = Lexer::new("# This is a comment\n# This is another comment\n");
+    lexer.eat_whitespace_and_comments();
 
     // Check last character in buffer
-    assert_eq!(tokenizer.chars.next(), None);
+    assert_eq!(lexer.chars.next(), None);
   }
 
   #[test]
   pub fn test_eat_whitespace_and_comments() {
-    let mut tokenizer =
-      Tokenizer::new("# This is a comment\n  # This is another comment\n   \r\t!");
-    tokenizer.eat_whitespace_and_comments();
+    let mut lexer = Lexer::new("# This is a comment\n  # This is another comment\n   \r\t!");
+    lexer.eat_whitespace_and_comments();
 
     // Check last character in buffer
-    assert_eq!(tokenizer.chars.next().unwrap().1, '!');
+    assert_eq!(lexer.chars.next().unwrap().1, '!');
   }
 
   #[test]
   pub fn test_eat_ident_end_at_end_of_stream() {
-    let mut tokenizer = Tokenizer::new("$aeiöu_0123");
+    let mut lexer = Lexer::new("$aeiöu_0123");
     // Consume leading `$` character
-    assert_eq!(tokenizer.chars.next().unwrap().1, '$');
+    assert_eq!(lexer.chars.next().unwrap().1, '$');
     // Consume var ident
-    let var = tokenizer
+    let var = lexer
       .eat_ident(Position::default().extend('$'), false)
       .unwrap();
 
     assert_eq!(var, "aeiöu_0123");
     // Check last character in buffer
-    assert_eq!(tokenizer.chars.next(), None);
+    assert_eq!(lexer.chars.next(), None);
   }
 
   #[test]
   pub fn test_eat_ident_end_at_non_var() {
-    let mut tokenizer = Tokenizer::new("$aeiöu_0123!");
+    let mut lexer = Lexer::new("$aeiöu_0123!");
     // Consume leading `$` character
-    assert_eq!(tokenizer.chars.next().unwrap().1, '$');
+    assert_eq!(lexer.chars.next().unwrap().1, '$');
     // Consume var ident
-    let var = tokenizer
+    let var = lexer
       .eat_ident(Position::default().extend('$'), false)
       .unwrap();
-    assert_eq!(tokenizer.chars.next().unwrap().1, '!');
+    assert_eq!(lexer.chars.next().unwrap().1, '!');
 
     // Check last character in buffer
     assert_eq!(var, "aeiöu_0123");
@@ -341,149 +340,147 @@ mod tests {
 
   #[test]
   pub fn test_eat_ident_has_alpha_or_underscore_fail() {
-    let mut tokenizer = Tokenizer::new("0");
+    let mut lexer = Lexer::new("0");
     // Consume var ident
-    let var = tokenizer.eat_ident(Position::default(), false);
+    let var = lexer.eat_ident(Position::default(), false);
     match var {
-      Err(TokenizeError::BadIdent(..)) => {}
-      _ => panic!("Expected `TokenizeError::BadIdent(..)`"),
+      Err(LexError::BadIdent(..)) => {}
+      _ => panic!("Expected `LexError::BadIdent(..)`"),
     };
 
-    assert_eq!(tokenizer.chars.next().unwrap().1, ('0'));
+    assert_eq!(lexer.chars.next().unwrap().1, ('0'));
   }
 
   #[test]
   pub fn test_eat_string_end_at_end_of_stream() {
-    let mut tokenizer = Tokenizer::new("\"This is a string\"");
+    let mut lexer = Lexer::new("\"This is a string\"");
     let beg = Position::default();
 
-    assert_eq!(tokenizer.chars.next().unwrap().1, ('"'));
-    assert_eq!(tokenizer.eat_string(beg, '"').unwrap(), "This is a string");
-    assert_eq!(tokenizer.chars.next(), None);
+    assert_eq!(lexer.chars.next().unwrap().1, ('"'));
+    assert_eq!(lexer.eat_string(beg, '"').unwrap(), "This is a string");
+    assert_eq!(lexer.chars.next(), None);
   }
 
   #[test]
   pub fn test_eat_string_unexpected_eof() {
-    let mut tokenizer = Tokenizer::new("'This is a bad string");
+    let mut lexer = Lexer::new("'This is a bad string");
     let beg = Position::default();
 
-    assert_eq!(tokenizer.chars.next().unwrap().1, ('\''));
+    assert_eq!(lexer.chars.next().unwrap().1, ('\''));
 
-    match tokenizer.eat_string(beg, '\'') {
-      Err(TokenizeError::BadString(..)) => {}
-      _ => panic!("Expected `TokenizeError::BadString(..)`"),
+    match lexer.eat_string(beg, '\'') {
+      Err(LexError::BadString(..)) => {}
+      _ => panic!("Expected `LexError::BadString(..)`"),
     };
 
-    assert_eq!(tokenizer.chars.next(), None);
+    assert_eq!(lexer.chars.next(), None);
   }
 
   #[test]
   pub fn test_eat_string_unexpected_eol() {
-    let mut tokenizer = Tokenizer::new("'This is a bad string\n'");
+    let mut lexer = Lexer::new("'This is a bad string\n'");
     let beg = Position::default();
 
-    assert_eq!(tokenizer.chars.next().unwrap().1, ('\''));
+    assert_eq!(lexer.chars.next().unwrap().1, ('\''));
 
-    match tokenizer.eat_string(beg, '\'') {
-      Err(TokenizeError::BadString(..)) => {}
-      _ => panic!("Expected `TokenizeError::BadString(..)`"),
+    match lexer.eat_string(beg, '\'') {
+      Err(LexError::BadString(..)) => {}
+      _ => panic!("Expected `LexError::BadString(..)`"),
     };
 
-    assert_eq!(tokenizer.chars.next().unwrap().1, ('\n'));
+    assert_eq!(lexer.chars.next().unwrap().1, ('\n'));
   }
 
   #[test]
   #[allow(clippy::float_cmp)]
   pub fn test_eat_number_floating() {
-    let mut tokenizer = Tokenizer::new("1337.60");
+    let mut lexer = Lexer::new("1337.60");
     let beg = Position::default();
 
-    assert_eq!(tokenizer.chars.next().unwrap().1, ('1'));
-    assert_eq!(tokenizer.eat_number(beg).unwrap(), 1337.60f64);
+    assert_eq!(lexer.chars.next().unwrap().1, ('1'));
+    assert_eq!(lexer.eat_number(beg).unwrap(), 1337.60f64);
   }
 
   #[test]
   #[allow(clippy::float_cmp)]
   pub fn test_eat_number_whole() {
-    let mut tokenizer = Tokenizer::new("69420");
+    let mut lexer = Lexer::new("69420");
     let beg = Position::default();
 
-    assert_eq!(tokenizer.chars.next().unwrap().1, ('6'));
-    assert_eq!(tokenizer.eat_number(beg).unwrap(), 69420f64);
+    assert_eq!(lexer.chars.next().unwrap().1, ('6'));
+    assert_eq!(lexer.eat_number(beg).unwrap(), 69420f64);
   }
 
   #[test]
   pub fn test_eat_number_bad() {
-    let mut tokenizer = Tokenizer::new("694.2.0");
+    let mut lexer = Lexer::new("694.2.0");
     let beg = Position::default();
 
-    assert_eq!(tokenizer.chars.next().unwrap().1, ('6'));
+    assert_eq!(lexer.chars.next().unwrap().1, ('6'));
 
-    match tokenizer.eat_number(beg) {
-      Err(TokenizeError::BadNumber(..)) => {}
-      _ => panic!("Expected `TokenizeError::BadNumber(..)`"),
+    match lexer.eat_number(beg) {
+      Err(LexError::BadNumber(..)) => {}
+      _ => panic!("Expected `LexError::BadNumber(..)`"),
     };
 
-    assert_eq!(tokenizer.chars.next(), None);
+    assert_eq!(lexer.chars.next(), None);
   }
 
   #[test]
-  pub fn test_tokenize_errors_chal() {
-    Tokenizer::new(include_str!("../../../data/errors.chal"))
+  pub fn test_lex_errors_chal() {
+    Lexer::new(include_str!("../../data/errors.chal"))
       .collect::<Result<Vec<_>, _>>()
       .unwrap();
   }
 
   #[test]
-  pub fn test_tokenize_fizzbuzz_chal() {
-    Tokenizer::new(include_str!("../../../data/fizzbuzz.chal"))
+  pub fn test_lex_fizzbuzz_chal() {
+    Lexer::new(include_str!("../../data/fizzbuzz.chal"))
       .collect::<Result<Vec<_>, _>>()
       .unwrap();
   }
 
   #[test]
-  pub fn test_tokenize_math_chal() {
-    Tokenizer::new(include_str!("../../../data/math.chal"))
+  pub fn test_lex_math_chal() {
+    Lexer::new(include_str!("../../data/math.chal"))
       .collect::<Result<Vec<_>, _>>()
       .unwrap();
   }
 
   #[test]
-  pub fn test_tokenize_recursion_chal() {
-    Tokenizer::new(include_str!("../../../data/recursion.chal"))
+  pub fn test_lex_recursion_chal() {
+    Lexer::new(include_str!("../../data/recursion.chal"))
       .collect::<Result<Vec<_>, _>>()
       .unwrap();
   }
 
   #[test]
-  pub fn test_tokenize_string_chal() {
-    Tokenizer::new(include_str!("../../../data/string.chal"))
+  pub fn test_lex_string_chal() {
+    Lexer::new(include_str!("../../data/string.chal"))
       .collect::<Result<Vec<_>, _>>()
       .unwrap();
   }
 
   #[test]
-  pub fn test_tokenize_whitespace_chal() {
-    Tokenizer::new(include_str!("../../../data/whitespace.chal"))
+  pub fn test_lex_whitespace_chal() {
+    Lexer::new(include_str!("../../data/whitespace.chal"))
       .collect::<Result<Vec<_>, _>>()
       .unwrap();
   }
 
   #[test]
   #[cfg_attr(miri, ignore)]
-  pub fn test_tokenize_stress() {
+  pub fn test_lex_stress() {
     let merged = concat!(
-      include_str!("../../../data/errors.chal"),
-      include_str!("../../../data/fizzbuzz.chal"),
-      include_str!("../../../data/math.chal"),
-      include_str!("../../../data/recursion.chal"),
-      include_str!("../../../data/string.chal"),
-      include_str!("../../../data/whitespace.chal"),
+      include_str!("../../data/errors.chal"),
+      include_str!("../../data/fizzbuzz.chal"),
+      include_str!("../../data/math.chal"),
+      include_str!("../../data/recursion.chal"),
+      include_str!("../../data/string.chal"),
+      include_str!("../../data/whitespace.chal"),
     )
     .repeat(1_000);
 
-    Tokenizer::new(&merged)
-      .collect::<Result<Vec<_>, _>>()
-      .unwrap();
+    Lexer::new(&merged).collect::<Result<Vec<_>, _>>().unwrap();
   }
 }
