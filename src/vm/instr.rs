@@ -2,20 +2,26 @@
 pub enum Instruction<'a> {
   Nop,
 
+  LdNull,
+  LdTrue,
+  LdFalse,
   LdStr(&'a str),
   LdF64(f64),
+  LdAddr(usize),
+  LdImport(&'a str),
 
-  Store(u8),
+  LdLoc(u8),
+  StLoc(u8),
 
-  JmpEq(usize),
-  JmpNEq(usize),
-  JmpLt(usize),
-  JmpGt(usize),
-  JmpLtEq(usize),
-  JmpGtEq(usize),
+  Jmp(isize),
+  JmpEq(isize),
+  JmpNEq(isize),
+  JmpLt(isize),
+  JmpGt(isize),
+  JmpLtEq(isize),
+  JmpGtEq(isize),
 
-  Call(usize),
-  CallVirt(&'a str),
+  Call,
   Ret,
 
   Add,

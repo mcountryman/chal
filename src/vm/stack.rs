@@ -1,26 +1,32 @@
-use super::error::VmResult;
-
+use super::{error::VmResult, types::Value};
 #[derive(Debug, Clone)]
-pub struct Stack<T, const SIZE: usize> {
+pub struct Stack {
   pos: usize,
-  items: [T; SIZE],
+  items: Vec<Value>,
 }
 
-impl<T: Copy + Default, const SIZE: usize> Stack<T, SIZE> {
-  pub fn new() -> Self {
+impl Stack {
+  pub fn new(size: usize) -> Self {
     Self {
       pos: 0,
-      items: [T::default(); SIZE],
+      items: vec![Value::Null; size],
     }
   }
 
-  pub fn pop(&mut self) -> VmResult<T> {
+  pub fn pop(&mut self) -> VmResult<Value> {
+    println!(
+      "pop() - pos: {}, item: {:?}",
+      self.pos, self.items[self.pos]
+    );
+
     if self.pos == 0 {
       todo!()
     }
 
+    let actual = self.pos - 1;
+    let item = self.items[actual].clone();
+    self.items[actual] = Value::Null;
     self.pos -= 1;
-    let item = self.items[self.pos];
 
     Ok(item)
   }
@@ -29,7 +35,13 @@ impl<T: Copy + Default, const SIZE: usize> Stack<T, SIZE> {
     self.pos = self.pos.saturating_sub(size);
   }
 
-  pub fn push(&mut self, value: T) -> VmResult<()> {
+  pub fn is_empty(&mut self) -> bool {
+    self.pos == 0
+  }
+
+  pub fn push(&mut self, value: Value) -> VmResult<()> {
+    println!("push({:?}) - pos: {}", value, self.pos);
+
     if self.pos >= self.items.len() {
       todo!()
     }
@@ -39,10 +51,18 @@ impl<T: Copy + Default, const SIZE: usize> Stack<T, SIZE> {
 
     Ok(())
   }
-}
 
-impl<T: Copy + Default, const SIZE: usize> Default for Stack<T, SIZE> {
-  fn default() -> Self {
-    Self::new()
+  pub fn push_top(&mut self, value: Value) -> VmResult<()> {
+    let top = self.items.len();
+    self.items[top] = value;
+
+    Ok(())
+  }
+
+  pub fn pop_top(&mut self) -> VmResult<Value> {
+    let top = self.items.len();
+    let item = self.items[top].clone();
+
+    Ok(item)
   }
 }
