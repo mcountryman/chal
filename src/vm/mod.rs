@@ -561,4 +561,10 @@ mod tests {
     assert_eq!(vm.pc, 8);
     assert_eq!(vm.locals[0], Value::Bool(false));
   }
+
+  macro_rules! {
+    () => {
+
+    };
+  }
 }
