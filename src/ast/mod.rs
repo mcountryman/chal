@@ -109,6 +109,9 @@ impl<'buf> Parser<'buf> {
       }
       .into(),
 
+      Token(span, TokenKind::Ident("equal")) => self.next_binary_op(BinaryOperator::Eq, span)?,
+      Token(span, TokenKind::Ident("neq")) => self.next_binary_op(BinaryOperator::NEq, span)?,
+
       // (ident expr*)
       Token(_, TokenKind::Ident(ident)) => match self.tokens.peek().cloned() {
         Some(Ok(Token(_, TokenKind::RParen))) => RefParam(ident).into(),
@@ -289,7 +292,7 @@ mod tests {
   }
 
   #[test]
-  fn test_compund() {
+  fn test_compound() {
     assert_eq!(
       Parser::new("(1 2)").parse().unwrap(),
       Compound(vec![NumberLit(1.0).into(), NumberLit(2.0).into()]).into()
@@ -416,6 +419,40 @@ mod tests {
       }
       .into()
     );
+  }
+
+  #[test]
+  fn test_binop() {
+    let mut tests = [
+      (Parser::new("(+ 0 1)"), BinaryOperator::Add),
+      (Parser::new("(- 0 1)"), BinaryOperator::Sub),
+      (Parser::new("(* 0 1)"), BinaryOperator::Mul),
+      (Parser::new("(/ 0 1)"), BinaryOperator::Div),
+      (Parser::new("(^ 0 1)"), BinaryOperator::Pow),
+      (Parser::new("(% 0 1)"), BinaryOperator::Mod),
+      (Parser::new("(equal 0 1)"), BinaryOperator::Eq),
+      (Parser::new("(neq 0 1)"), BinaryOperator::NEq),
+      (Parser::new("(< 0 1)"), BinaryOperator::Lt),
+      (Parser::new("(<= 0 1)"), BinaryOperator::LtEq),
+      (Parser::new("(> 0 1)"), BinaryOperator::Gt),
+      (Parser::new("(>= 0 1)"), BinaryOperator::GtEq),
+      (Parser::new("(| 0 1)"), BinaryOperator::BOr),
+      (Parser::new("(& 0 1)"), BinaryOperator::BAnd),
+      (Parser::new("(<< 0 1)"), BinaryOperator::BLShift),
+      (Parser::new("(>> 0 1)"), BinaryOperator::BRShift),
+    ];
+
+    for (parser, op) in tests.iter_mut() {
+      let left = parser.parse().unwrap();
+      let right = BinaryOp {
+        op: *op,
+        lhs: NumberLit(0.0).into(),
+        rhs: NumberLit(1.0).into(),
+      }
+      .into();
+
+      assert_eq!(left, right);
+    }
   }
 
   #[test]

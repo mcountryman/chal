@@ -32,11 +32,11 @@ pub trait Visitor {
     }
   }
 
-  fn visit_string(&mut self, expr: &StringLit<'_>) -> Result<(), Self::Error> {
+  fn visit_string(&mut self, _: &StringLit<'_>) -> Result<(), Self::Error> {
     Ok(())
   }
 
-  fn visit_number(&mut self, expr: &NumberLit) -> Result<(), Self::Error> {
+  fn visit_number(&mut self, _: &NumberLit) -> Result<(), Self::Error> {
     Ok(())
   }
 
@@ -78,11 +78,11 @@ pub trait Visitor {
     Ok(())
   }
 
-  fn visit_var(&mut self, expr: &RefVar<'_>) -> Result<(), Self::Error> {
+  fn visit_var(&mut self, _: &RefVar<'_>) -> Result<(), Self::Error> {
     Ok(())
   }
 
-  fn visit_param(&mut self, expr: &RefParam<'_>) -> Result<(), Self::Error> {
+  fn visit_param(&mut self, _: &RefParam<'_>) -> Result<(), Self::Error> {
     Ok(())
   }
 }

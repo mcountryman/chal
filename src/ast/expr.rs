@@ -103,6 +103,8 @@ pub enum BinaryOperator {
   BLShift,
   BRShift,
 
+  Eq,
+  NEq,
   Lt,
   LtEq,
   Gt,
