@@ -2,10 +2,10 @@ use crate::ast::{
   Assign, BinaryOp, Call, Expr, Function, If, NumberLit, RefParam, RefVar, StringLit, UnaryOp,
 };
 
-pub trait Visitor {
+pub trait Visitor<'buf> {
   type Error;
 
-  fn visit(&mut self, expr: &Expr<'_>) -> Result<(), Self::Error> {
+  fn visit(&mut self, expr: &Expr<'buf>) -> Result<(), Self::Error> {
     match expr {
       Expr::Noop(_) => Ok(()),
 
@@ -32,7 +32,7 @@ pub trait Visitor {
     }
   }
 
-  fn visit_string(&mut self, _: &StringLit<'_>) -> Result<(), Self::Error> {
+  fn visit_string(&mut self, _: &StringLit<'buf>) -> Result<(), Self::Error> {
     Ok(())
   }
 
@@ -40,7 +40,7 @@ pub trait Visitor {
     Ok(())
   }
 
-  fn visit_if(&mut self, expr: &If<'_>) -> Result<(), Self::Error> {
+  fn visit_if(&mut self, expr: &If<'buf>) -> Result<(), Self::Error> {
     self.visit(&expr.condition)?;
     self.visit(&expr.body)?;
 
@@ -51,7 +51,7 @@ pub trait Visitor {
     Ok(())
   }
 
-  fn visit_call(&mut self, expr: &Call<'_>) -> Result<(), Self::Error> {
+  fn visit_call(&mut self, expr: &Call<'buf>) -> Result<(), Self::Error> {
     if let Some(expr) = &expr.args {
       self.visit(expr)?;
     }
@@ -59,30 +59,30 @@ pub trait Visitor {
     Ok(())
   }
 
-  fn visit_assign(&mut self, expr: &Assign<'_>) -> Result<(), Self::Error> {
+  fn visit_assign(&mut self, expr: &Assign<'buf>) -> Result<(), Self::Error> {
     self.visit(&expr.expr)
   }
 
-  fn visit_function(&mut self, expr: &Function<'_>) -> Result<(), Self::Error> {
+  fn visit_function(&mut self, expr: &Function<'buf>) -> Result<(), Self::Error> {
     self.visit(&expr.body)
   }
 
-  fn visit_unary(&mut self, expr: &UnaryOp<'_>) -> Result<(), Self::Error> {
+  fn visit_unary(&mut self, expr: &UnaryOp<'buf>) -> Result<(), Self::Error> {
     self.visit(&expr.expr)
   }
 
-  fn visit_binary(&mut self, expr: &BinaryOp<'_>) -> Result<(), Self::Error> {
+  fn visit_binary(&mut self, expr: &BinaryOp<'buf>) -> Result<(), Self::Error> {
     self.visit(&expr.lhs)?;
     self.visit(&expr.rhs)?;
 
     Ok(())
   }
 
-  fn visit_var(&mut self, _: &RefVar<'_>) -> Result<(), Self::Error> {
+  fn visit_var(&mut self, _: &RefVar<'buf>) -> Result<(), Self::Error> {
     Ok(())
   }
 
-  fn visit_param(&mut self, _: &RefParam<'_>) -> Result<(), Self::Error> {
+  fn visit_param(&mut self, _: &RefParam<'buf>) -> Result<(), Self::Error> {
     Ok(())
   }
 }
