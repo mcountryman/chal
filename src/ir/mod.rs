@@ -4,22 +4,24 @@ pub mod functions;
 pub mod instr;
 pub mod scope;
 
-use std::collections::HashMap;
-
 use self::{
-  instr::Instruction,
+  functions::get_fns,
+  instr::{Instruction, Label},
   scope::{Local, Scope, ScopeId},
 };
-use crate::{
-  ast::{
-    Assign, BinaryOp, BinaryOperator, Call, Define, Expr, Function, If, NumberLit, RefParam,
-    RefVar, StringLit, UnaryOp, UnaryOperator,
-  },
-  gen::visit::Visitor,
-  hir::{functions::get_fns, instr::Label},
+use crate::ast::{
+  Assign, BinaryOp, BinaryOperator, Call, Define, Expr, Function, If, NumberLit, Parser, RefParam,
+  RefVar, StringLit, UnaryOp, UnaryOperator, Visitor,
 };
+use std::collections::HashMap;
 
-pub fn compile<'buf>(expr: &Expr<'buf>) -> Result<Vec<Instruction<'buf>>, ()> {
+pub fn compile<'buf>(script: &'buf str) -> Result<Vec<Instruction<'buf>>, ()> {
+  let expr = Parser::new(script).parse().expect("Failed to parse");
+
+  compile_expr(&expr)
+}
+
+pub fn compile_expr<'buf>(expr: &Expr<'buf>) -> Result<Vec<Instruction<'buf>>, ()> {
   let mut hir = Hir {
     scope: ScopeId::new(0),
     scopes: vec![Scope::new()],
@@ -336,7 +338,7 @@ mod tests {
       .parse()
       .unwrap();
 
-    let instr = super::compile(&expr).unwrap();
+    let instr = super::compile_expr(&expr).unwrap();
 
     println!("{:?}", instr);
   }

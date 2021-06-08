@@ -1,5 +1,6 @@
 use super::BuiltInRc;
-use std::{fmt::Debug, rc::Rc};
+use crate::ir::instr::Label;
+use std::{borrow::Cow, fmt::Debug, rc::Rc};
 
 #[derive(Clone)]
 pub enum Value {
@@ -83,9 +84,15 @@ impl From<&str> for Value {
   }
 }
 
+impl<'a> From<Cow<'a, str>> for Value {
+  fn from(value: Cow<'a, str>) -> Self {
+    Value::String(Rc::new(value.to_string()))
+  }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub enum Step {
   Next,
-  Jmp(isize),
-  JmpAbs(usize),
+  Jmp(Label),
+  JmpAddr(usize),
 }

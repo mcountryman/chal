@@ -2,7 +2,7 @@ use std::{
   cell::RefCell,
   fmt::Debug,
   sync::atomic::{AtomicU16, Ordering},
-  time::{Duration, Instant},
+  time::Instant,
 };
 
 static COUNTER: AtomicU16 = AtomicU16::new(0);

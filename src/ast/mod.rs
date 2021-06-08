@@ -1,8 +1,10 @@
 pub mod error;
 pub mod expr;
+pub mod visit;
 
 pub use error::*;
 pub use expr::*;
+pub use visit::*;
 
 use crate::{
   lex::{Lexer, Token, TokenKind},

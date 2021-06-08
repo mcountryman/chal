@@ -1,8 +1,6 @@
-use std::borrow::Cow;
-
-use crate::util::uuid::Uuid;
-
 use super::scope::Local;
+use crate::util::uuid::Uuid;
+use std::borrow::Cow;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Label(Uuid);

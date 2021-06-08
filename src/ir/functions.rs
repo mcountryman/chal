@@ -1,8 +1,5 @@
 use super::instr::Label;
-use crate::{
-  ast::{Expr, Function},
-  gen::visit::Visitor,
-};
+use crate::ast::{Expr, Function, Visitor};
 use std::collections::HashMap;
 
 pub fn get_fns<'buf>(expr: &Expr<'buf>) -> Result<HashMap<String, Label>, ()> {
