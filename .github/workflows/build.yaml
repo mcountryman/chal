@@ -19,23 +19,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
 
-  test-doc:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-      - uses: Swatinem/rust-cache@v1
-      - run: cargo install cargo-deadlinks
-      - name: doc
-        env:
-          RUSTDOCFLAGS: --cfg doc_cfg
-        run: cargo deadlinks --ignore-fragments -- --all
-
   test:
     runs-on: ${{ matrix.os }}
     strategy:
