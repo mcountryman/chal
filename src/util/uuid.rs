@@ -26,3 +26,21 @@ impl Default for Uuid {
     Self::new()
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::Uuid;
+  use std::collections::HashSet;
+
+  #[test]
+  fn test_unique() {
+    let mut ids = HashSet::<Uuid>::new();
+    let count = 10_000;
+
+    for _ in 0..count {
+      ids.insert(Uuid::default());
+    }
+
+    assert_eq!(ids.len(), count);
+  }
+}
