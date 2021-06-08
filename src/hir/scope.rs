@@ -1,24 +1,46 @@
-use super::local::Locals;
+//! Scoped variable and local tracking.
+
 use crate::util::uuid::Uuid;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
-pub struct Scopes<'buf> {
-  scopes: HashMap<ScopeId, Scope<'buf>>,
-}
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ScopeId(usize);
 
-impl<'buf> Scopes<'buf> {
-  pub fn get(&self) -> &Scope<'buf> {
-    todo!()
+impl ScopeId {
+  pub fn new(id: usize) -> Self {
+    Self(id)
+  }
+
+  pub fn into_inner(self) -> usize {
+    self.0
   }
 }
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Local(Uuid);
+
 #[derive(Debug, Clone)]
-pub struct Scope<'buf> {
-  locals: Locals<'buf>,
-  parent: Option<ScopeId>,
-  children: Vec<ScopeId>,
+pub struct Scope {
+  pub vars: HashMap<String, Local>,
+  pub params: HashMap<String, Local>,
+
+  pub parent: Option<ScopeId>,
+  pub children: Vec<ScopeId>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ScopeId(Uuid);
+impl Scope {
+  pub fn new() -> Self {
+    Self {
+      vars: Default::default(),
+      params: Default::default(),
+      parent: None,
+      children: Default::default(),
+    }
+  }
+}
+
+impl Default for Scope {
+  fn default() -> Self {
+    Self::new()
+  }
+}

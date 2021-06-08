@@ -1,5 +1,6 @@
 use std::{
   cell::RefCell,
+  fmt::Debug,
   sync::atomic::{AtomicU16, Ordering},
   time::{Duration, Instant},
 };
@@ -14,7 +15,7 @@ thread_local! {
 ///
 /// An offshoot of uuidv1 without conforming to the binary format.  Calculated by adding
 /// a 16bit counter to the nanoseconds since thread start.
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd, Hash)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd, Hash)]
 pub struct Uuid(u128);
 
 impl Uuid {
@@ -46,6 +47,12 @@ impl Uuid {
 impl Default for Uuid {
   fn default() -> Self {
     Self::new()
+  }
+}
+
+impl Debug for Uuid {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{:00000000000000000000000000000000}", self.0)
   }
 }
 

@@ -12,6 +12,7 @@ pub enum Expr<'buf> {
   If(Box<If<'buf>>),
   Call(Box<Call<'buf>>),
   Assign(Box<Assign<'buf>>),
+  Define(Box<Define<'buf>>),
   Function(Box<Function<'buf>>),
   UnaryOp(Box<UnaryOp<'buf>>),
   BinaryOp(Box<BinaryOp<'buf>>),
@@ -48,6 +49,12 @@ pub struct Call<'buf> {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Assign<'buf> {
+  pub ident: &'buf str,
+  pub expr: Expr<'buf>,
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct Define<'buf> {
   pub ident: &'buf str,
   pub expr: Expr<'buf>,
 }
@@ -100,8 +107,8 @@ pub enum BinaryOperator {
 
   BOr,
   BAnd,
-  BLShift,
-  BRShift,
+  LShift,
+  RShift,
 
   Eq,
   NEq,
@@ -144,6 +151,12 @@ impl<'buf> From<Call<'buf>> for Expr<'buf> {
 impl<'buf> From<Assign<'buf>> for Expr<'buf> {
   fn from(expr: Assign<'buf>) -> Self {
     Expr::Assign(Box::new(expr))
+  }
+}
+
+impl<'buf> From<Define<'buf>> for Expr<'buf> {
+  fn from(expr: Define<'buf>) -> Self {
+    Expr::Define(Box::new(expr))
   }
 }
 

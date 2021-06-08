@@ -79,7 +79,7 @@ impl<'buf> Parser<'buf> {
   fn next_stmt(&mut self, token: &Token<'buf>) -> ParseResult<'buf, Option<Expr<'buf>>> {
     Ok(Some(match token {
       // (var ident expr)
-      Token(span, TokenKind::Ident("var")) => Assign {
+      Token(span, TokenKind::Ident("var")) => Define {
         ident: self.next_ident(&span)?,
         expr: self
           .next_expr(1, false)?
@@ -157,8 +157,8 @@ impl<'buf> Parser<'buf> {
       Token(span, TokenKind::Mod) => self.next_binary_op(BinaryOperator::Mod, span)?,
       Token(span, TokenKind::BOr) => self.next_binary_op(BinaryOperator::BOr, span)?,
       Token(span, TokenKind::BAnd) => self.next_binary_op(BinaryOperator::BAnd, span)?,
-      Token(span, TokenKind::BLShift) => self.next_binary_op(BinaryOperator::BLShift, span)?,
-      Token(span, TokenKind::BRShift) => self.next_binary_op(BinaryOperator::BRShift, span)?,
+      Token(span, TokenKind::BLShift) => self.next_binary_op(BinaryOperator::LShift, span)?,
+      Token(span, TokenKind::BRShift) => self.next_binary_op(BinaryOperator::RShift, span)?,
       Token(span, TokenKind::Gt) => self.next_binary_op(BinaryOperator::Gt, span)?,
       Token(span, TokenKind::Lt) => self.next_binary_op(BinaryOperator::Lt, span)?,
       Token(span, TokenKind::GtEq) => self.next_binary_op(BinaryOperator::GtEq, span)?,
@@ -300,10 +300,10 @@ mod tests {
   }
 
   #[test]
-  fn test_parse_assign() {
+  fn test_parse_define() {
     assert_eq!(
       Parser::new("(var variable 1)").parse().unwrap(),
-      Assign {
+      Define {
         ident: "variable",
         expr: NumberLit(1.0).into()
       }
@@ -312,7 +312,7 @@ mod tests {
 
     assert_eq!(
       Parser::new("((var variable (1)))").parse().unwrap(),
-      Assign {
+      Define {
         ident: "variable",
         expr: NumberLit(1.0).into()
       }
@@ -438,8 +438,8 @@ mod tests {
       (Parser::new("(>= 0 1)"), BinaryOperator::GtEq),
       (Parser::new("(| 0 1)"), BinaryOperator::BOr),
       (Parser::new("(& 0 1)"), BinaryOperator::BAnd),
-      (Parser::new("(<< 0 1)"), BinaryOperator::BLShift),
-      (Parser::new("(>> 0 1)"), BinaryOperator::BRShift),
+      (Parser::new("(<< 0 1)"), BinaryOperator::LShift),
+      (Parser::new("(>> 0 1)"), BinaryOperator::RShift),
     ];
 
     for (parser, op) in tests.iter_mut() {

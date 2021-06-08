@@ -1,5 +1,6 @@
 use crate::ast::{
-  Assign, BinaryOp, Call, Expr, Function, If, NumberLit, RefParam, RefVar, StringLit, UnaryOp,
+  Assign, BinaryOp, Call, Define, Expr, Function, If, NumberLit, RefParam, RefVar, StringLit,
+  UnaryOp,
 };
 
 pub trait Visitor<'buf> {
@@ -14,6 +15,7 @@ pub trait Visitor<'buf> {
 
       Expr::If(expr) => self.visit_if(&expr),
       Expr::Call(expr) => self.visit_call(&expr),
+      Expr::Define(expr) => self.visit_define(&expr),
       Expr::Assign(expr) => self.visit_assign(&expr),
       Expr::Function(expr) => self.visit_function(&expr),
       Expr::UnaryOp(expr) => self.visit_unary(&expr),
@@ -60,6 +62,10 @@ pub trait Visitor<'buf> {
   }
 
   fn visit_assign(&mut self, expr: &Assign<'buf>) -> Result<(), Self::Error> {
+    self.visit(&expr.expr)
+  }
+
+  fn visit_define(&mut self, expr: &Define<'buf>) -> Result<(), Self::Error> {
     self.visit(&expr.expr)
   }
 

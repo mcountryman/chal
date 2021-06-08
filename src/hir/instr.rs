@@ -1,18 +1,28 @@
-use super::{function::HirFn, local::LocalId};
+use std::borrow::Cow;
+
 use crate::util::uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+use super::scope::Local;
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Label(Uuid);
 
 #[derive(Debug, Clone)]
-pub enum HirInstruction<'buf> {
+pub enum Instruction<'a> {
   Nop,
 
-  LdStr,
-  LdF64,
+  LdNull,
+  LdTrue,
+  LdFalse,
+  LdStr(Cow<'a, str>),
+  LdF64(f64),
+  LdLoc(Local),
+  LdAddr(usize),
+  LdImport(&'a str),
 
-  LdLoc(LocalId),
-  StLoc(LocalId),
+  StLoc(Local),
+
+  Label(Label),
 
   Jmp(Label),
   JmpEq(Label),
@@ -21,10 +31,10 @@ pub enum HirInstruction<'buf> {
   JmpGt(Label),
   JmpLtEq(Label),
   JmpGtEq(Label),
-  Label(Label),
 
-  CallUdf(HirFn<'buf>),
-  CallBuiltIn(&'buf str),
+  Call(Label),
+  CallF(&'a str),
+  Ret,
 
   Add,
   Sub,
@@ -33,8 +43,16 @@ pub enum HirInstruction<'buf> {
   Mod,
   Pow,
 
+  Eq,
+  NEq,
+  Lt,
+  Gt,
+  LtEq,
+  GtEq,
+
   BOr,
+  BNot,
   BAnd,
-  BLShift,
-  BRShift,
+  LShift,
+  RShift,
 }
