@@ -2,7 +2,7 @@ use super::instr::Label;
 use crate::ast::{Expr, Function, Visitor};
 use std::collections::HashMap;
 
-pub fn get_fns<'buf>(expr: &Expr<'buf>) -> Result<HashMap<String, Label>, ()> {
+pub fn get_fns(expr: &Expr<'_>) -> Result<HashMap<String, Label>, ()> {
   let mut fns = Functions(Default::default());
 
   fns.visit(expr)?;

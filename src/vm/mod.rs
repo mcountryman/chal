@@ -13,7 +13,7 @@ use crate::ir::{
 };
 use std::{collections::HashMap, rc::Rc};
 
-type BuiltIn = dyn Fn() -> VmResult<Value>;
+type BuiltIn = dyn Fn(&mut Stack) -> VmResult<()>;
 type BuiltInRc = Rc<BuiltIn>;
 
 macro_rules! jmp_if {
@@ -96,7 +96,7 @@ impl<'script> VirtualMachine<'script> {
         .iter()
         .enumerate()
         .filter_map(|(offset, instr)| match instr {
-          Instruction::Label(label) => Some((*label, offset)),
+          Instruction::Label(label) => Some((*label, offset + 1)),
           _ => None,
         })
         .collect(),
@@ -107,7 +107,7 @@ impl<'script> VirtualMachine<'script> {
 
   pub fn builtin<F>(mut self, name: &str, f: F) -> Self
   where
-    F: 'static + Fn() -> VmResult<Value>,
+    F: 'static + Fn(&mut Stack) -> VmResult<()>,
   {
     self.builtins.insert(name.to_string(), Rc::new(f));
     self
@@ -131,6 +131,8 @@ impl<'script> VirtualMachine<'script> {
   }
 
   fn run_next(&mut self) -> VmResult<Step> {
+    println!("{:?} - pc: {}", self.script[self.pc], self.pc);
+
     match &self.script[self.pc] {
       Instruction::Nop => Ok(Step::Next),
 
@@ -156,7 +158,7 @@ impl<'script> VirtualMachine<'script> {
       Instruction::Call(label) => self.run_call(*label),
       Instruction::CallF(name) => match self.builtins.get(*name) {
         Some(builtin) => {
-          self.stack.push(builtin()?)?;
+          builtin(&mut self.stack)?;
 
           Ok(Step::Next)
         }
@@ -194,7 +196,7 @@ impl<'script> VirtualMachine<'script> {
       Instruction::LShift => run_arith_op_fn!(self.stack, a << b),
       Instruction::RShift => run_arith_op_fn!(self.stack, a >> b),
 
-      Instruction::Label(_) => Ok(Step::Next),
+      Instruction::Label(_) => panic!("Encountered label"),
     }
   }
 
@@ -254,9 +256,86 @@ mod tests {
   use std::borrow::Cow;
 
   #[test]
-  fn test_whitespace() {
-    let inst = compile(include_str!("../../data/whitespace.chal")).unwrap();
-    let mut vm = VirtualMachine::new(&inst);
+  fn test_string_chal() {
+    let inst = compile(include_str!("../../data/recursion.chal")).unwrap();
+    let mut vm = VirtualMachine::new(&inst)
+      .builtin("print", |stack| {
+        println!("PRINT: {}", stack.pop()?);
+
+        Ok(())
+      })
+      .builtin("charAt", |stack| {
+        let rhs = stack.pop()?.as_f64()? as usize;
+
+        let lhs = stack.pop()?.as_string()?;
+        let lhs = lhs.borrow();
+
+        let ch = lhs
+          .chars()
+          .skip(rhs)
+          .take(1)
+          .next()
+          .unwrap_or_default()
+          .to_string();
+
+        stack.push(ch.into())?;
+
+        Ok(())
+      })
+      .builtin("removeAt", |stack| {
+        let rhs = stack.pop()?.as_f64()?;
+        let lhs = stack.pop()?.as_string()?;
+
+        lhs.borrow_mut().remove(rhs as _);
+
+        stack.push(lhs.into())?;
+
+        Ok(())
+      })
+      .builtin("append", |stack| {
+        let rhs = stack.pop()?.as_string()?;
+        let rhs = rhs.borrow();
+
+        let lhs = stack.pop()?.as_string()?;
+
+        lhs.borrow_mut().push_str(rhs.as_str());
+
+        stack.push(lhs.into())?;
+
+        Ok(())
+      })
+      .builtin("length", |stack| {
+        let value = stack.pop()?.as_string()?;
+        let value = value.borrow();
+
+        stack.push(Value::Number(value.len() as _))?;
+
+        Ok(())
+      })
+      .builtin("indexOf", |stack| {
+        let needle = stack.pop()?.as_string()?;
+        let needle = needle.borrow();
+        let needle = needle.as_str();
+
+        let haystack = stack.pop()?.as_string()?;
+        let haystack = haystack.borrow();
+        let haystack = haystack.as_str();
+
+        let index = haystack.find(needle).map(|val| val as f64).unwrap_or(-1.0);
+
+        stack.push(Value::Number(index))?;
+
+        Ok(())
+      })
+      .builtin("readInNumber", |stack| {
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap();
+        let input = input.trim().parse::<f64>().unwrap();
+
+        stack.push(Value::Number(input))?;
+
+        Ok(())
+      });
 
     vm.run().unwrap();
   }
@@ -327,7 +406,7 @@ mod tests {
   fn test_ld_import() {
     let mut vm = VirtualMachine::new(&[Instruction::LdImport("printf")])
       //
-      .builtin("printf", || Ok(Value::Null));
+      .builtin("printf", |_| Ok(()));
 
     vm.run().unwrap();
 

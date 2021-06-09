@@ -1,6 +1,12 @@
-use super::BuiltInRc;
+use super::{error::VmResult, BuiltInRc};
 use crate::ir::instr::Label;
-use std::{borrow::Cow, fmt::Debug, rc::Rc};
+use std::{
+  borrow::{Borrow, Cow},
+  cell::RefCell,
+  fmt::{Debug, Display},
+  ops::Deref,
+  rc::Rc,
+};
 
 #[derive(Clone)]
 pub enum Value {
@@ -8,8 +14,25 @@ pub enum Value {
   Addr(usize),
   Bool(bool),
   Number(f64),
-  String(Rc<String>),
+  String(Rc<RefCell<String>>),
   BuiltIn(BuiltInRc),
+}
+
+impl Value {
+  pub fn as_string(&self) -> VmResult<Rc<RefCell<String>>> {
+    match &self {
+      Self::String(value) => Ok(value.clone()),
+      Self::Number(value) => Ok(Rc::new(RefCell::new(value.to_string()))),
+      _ => todo!("Bad type"),
+    }
+  }
+
+  pub fn as_f64(&self) -> VmResult<f64> {
+    match &self {
+      Self::Number(value) => Ok(*value),
+      _ => todo!("Bad type"),
+    }
+  }
 }
 
 impl Debug for Value {
@@ -19,7 +42,7 @@ impl Debug for Value {
       Self::Addr(addr) => write!(f, "Value::Addr({})", addr),
       Self::Bool(value) => write!(f, "Value::Bool({})", value),
       Self::Number(value) => write!(f, "Value::Number({})", value),
-      Self::String(value) => write!(f, "Value::String({})", value),
+      Self::String(value) => write!(f, "Value::String({})", value.deref().borrow()),
       Self::BuiltIn(_) => write!(f, "Value::Null"),
     }
   }
@@ -60,6 +83,19 @@ impl Default for Value {
   }
 }
 
+impl Display for Value {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::Null => write!(f, "null"),
+      Self::Addr(_) => todo!(),
+      Self::BuiltIn(_) => todo!(),
+      Self::Bool(value) => write!(f, "{}", value),
+      Self::Number(value) => write!(f, "{}", value),
+      Self::String(value) => write!(f, "{}", value.deref().borrow()),
+    }
+  }
+}
+
 impl From<usize> for Value {
   fn from(value: usize) -> Self {
     Value::Addr(value)
@@ -80,13 +116,25 @@ impl From<f64> for Value {
 
 impl From<&str> for Value {
   fn from(value: &str) -> Self {
-    Value::String(Rc::new(value.to_string()))
+    value.to_string().into()
   }
 }
 
 impl<'a> From<Cow<'a, str>> for Value {
   fn from(value: Cow<'a, str>) -> Self {
-    Value::String(Rc::new(value.to_string()))
+    value.to_string().into()
+  }
+}
+
+impl<'a> From<String> for Value {
+  fn from(value: String) -> Self {
+    Rc::new(RefCell::new(value)).into()
+  }
+}
+
+impl<'a> From<Rc<RefCell<String>>> for Value {
+  fn from(value: Rc<RefCell<String>>) -> Self {
+    Self::String(value)
   }
 }
 

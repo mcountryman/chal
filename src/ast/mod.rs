@@ -167,8 +167,8 @@ impl<'buf> Parser<'buf> {
       Token(span, TokenKind::LtEq) => self.next_binary_op(BinaryOperator::LtEq, span)?,
 
       Token(span, TokenKind::BNot) => self.next_unary_op(UnaryOperator::BNot, span)?,
-      Token(span, TokenKind::AddInc) => self.next_unary_op(UnaryOperator::AddInc, span)?,
-      Token(span, TokenKind::SubInc) => self.next_unary_op(UnaryOperator::SubInc, span)?,
+      Token(span, TokenKind::AddInc) => self.next_unary_inc_op(BinaryOperator::Add, span)?,
+      Token(span, TokenKind::SubInc) => self.next_unary_inc_op(BinaryOperator::Sub, span)?,
 
       _ => return Ok(None),
     }))
@@ -218,6 +218,43 @@ impl<'buf> Parser<'buf> {
       }
       .into(),
     )
+  }
+
+  fn next_unary_inc_op(
+    &mut self,
+    op: BinaryOperator,
+    span: &Span<'buf>,
+  ) -> ParseResult<'buf, Expr<'buf>> {
+    Ok(match self.tokens.peek().cloned().transpose()? {
+      Some(Token(_, TokenKind::Ident(ident))) => {
+        // Consume `Token(_, TokenKind::Ident(_))`
+        self.tokens.next();
+
+        Compound(vec![
+          Assign {
+            ident,
+            expr: BinaryOp {
+              op,
+              lhs: RefVar(ident).into(),
+              rhs: NumberLit(1.0).into(),
+            }
+            .into(),
+          }
+          .into(),
+          RefVar(ident).into(),
+        ])
+        .into()
+      }
+
+      _ => BinaryOp {
+        op,
+        lhs: self
+          .next_expr(1, false)?
+          .ok_or_else(|| ParseError::expected_op_lhs(span))?,
+        rhs: NumberLit(1.0).into(),
+      }
+      .into(),
+    })
   }
 
   fn next_ident(&mut self, beg: &Span<'buf>) -> ParseResult<'buf, &'buf str> {

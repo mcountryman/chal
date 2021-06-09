@@ -238,6 +238,10 @@ impl<'buf> Visitor<'buf> for Hir<'buf> {
   }
 
   fn visit_call(&mut self, expr: &Call<'buf>) -> Result<(), Self::Error> {
+    for arg in &expr.args {
+      self.visit(arg)?;
+    }
+
     match self.functions.get(expr.name).cloned() {
       Some(label) => self.push(Instruction::Call(label)),
       None => self.push(Instruction::CallF(expr.name)),
@@ -315,7 +319,7 @@ impl<'buf> Visitor<'buf> for Hir<'buf> {
 
     expr.params.iter().for_each(|param| {
       let local = self.push_param(param);
-      self.push(Instruction::LdLoc(local));
+      self.push(Instruction::StLoc(local));
     });
 
     self.visit(&expr.body)?;
